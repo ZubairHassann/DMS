@@ -158,6 +158,8 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
             last_name=last_name,
             password=password
         )
+        user.set_password(password)  # Set password using set_password for security
+        user.save()
 
         customer = Customer.objects.create(user=user, **validated_data)
         return customer

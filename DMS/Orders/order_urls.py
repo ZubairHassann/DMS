@@ -5,4 +5,6 @@ router = routers.DefaultRouter()
 router.register(r'Manual-Order', ManualOrderViewSet, basename='Manual-Order'),
 urlpatterns = [
     path('', include(router.urls)),
+    path("ManualOrderCreate", ManualOrderCreateView.as_view(),name='ManualOrderCreate'
+         ),
 ]

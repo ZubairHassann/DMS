@@ -3,9 +3,12 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.conf import settings
 from datetime import timedelta
 from django.utils import timezone
+from django.utils.timezone import now
 from decimal import Decimal
 from django.dispatch import receiver
 from django.db.models.signals import post_save
+from geopy.distance import geodesic
+
 # from django.contrib.auth.models import User
 # from django.contrib.gis.db.models.functions import Distance
 
@@ -128,6 +131,8 @@ class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     address = models.TextField(max_length=100, null=False, default='None')
     contact_number = models.CharField(max_length=15)
+    address_latitude = models.FloatField(null=True, blank=True)  # Add this field
+    address_longitude = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name}"
@@ -195,6 +200,104 @@ class Order(models.Model):
         return f'Order {self.id} by {self.user.username}'
 
 
+# class ManualOrder(models.Model):
+#     STATUS_CHOICES = (
+#         ('pending', 'Pending'),
+#         ('processing', 'Processing'),
+#         ('shipped', 'Shipped'),
+#         ('delivered', 'Delivered'),
+#     )
+
+#     UNIT_CHOICES = (
+#         ('kg', 'KG'),
+#         ('liter', 'Liter'),
+#         ('piece', 'Piece'),
+#     )
+
+#     user = models.OneToOneField(
+#         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+#     )
+#     rider = models.OneToOneField(
+#         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'is_staff': True}, related_name='assigned_orders'
+#     )
+#     name = models.CharField(max_length=255, blank=True, null=True)
+#     mobile_number = models.CharField(max_length=15, blank=True, null=True)
+#     address = models.TextField(blank=True, null=True)
+#     product_name = models.CharField(max_length=255, blank=True, null=True)
+#     product_image = models.ImageField(
+#         upload_to='manual_orders/', blank=True, null=True
+#     )
+#     quantity = models.DecimalField(
+#         max_digits=10, decimal_places=2, blank=True, null=True
+#     )
+#     unit = models.CharField(
+#         max_length=10, choices=UNIT_CHOICES, default='piece'
+#     )
+#     order_details = models.TextField(blank=True, null=True)
+#     total_price = models.DecimalField(
+#         max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
+#     )
+#     ride_charges = models.DecimalField(
+#         max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
+#     )
+#     paid_amount = models.DecimalField(
+#         max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
+#     )
+#     status = models.CharField(
+#         max_length=20, choices=STATUS_CHOICES, default='pending'
+#     )
+#     invoice = models.ImageField(upload_to='invoices/', blank=True, null=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+
+#     # Latitude and longitude fields to store location without using GeoDjango
+#     delivery_latitude = models.DecimalField(
+#         max_digits=9, decimal_places=6, null=True, blank=True
+#     )  # For storing the latitude of delivery location
+#     delivery_longitude = models.DecimalField(
+#         max_digits=9, decimal_places=6, null=True, blank=True
+#     )  # For storing the longitude of delivery location
+
+#     def __str__(self):
+#         return f'Manual Order {self.id} by {self.user.username}'
+
+#     def is_time_expired(self):
+#         """Check if 20 minutes have passed since the order was placed."""
+#         time_elapsed = timezone.now() - self.created_at
+#         return time_elapsed >= timedelta(minutes=20)
+
+#     def save(self, *args, **kwargs):
+#         super().save(*args, **kwargs)  # Save the order first
+#         # Assign a rider only if not already assigned and location is provided
+#         if not self.rider and self.delivery_latitude and self.delivery_longitude:
+#             assign_rider_to_order(self)
+
+
+# def assign_rider_to_order(order):
+#     """
+#     Assign the nearest available rider to the given order.
+#     """
+#     # Assuming the Rider model now has latitude and longitude fields
+#     nearest_rider = Rider.objects.filter(is_available=True) \
+#         .filter(latitude__isnull=False, longitude__isnull=False) \
+#         .annotate(
+#             distance=models.ExpressionWrapper(
+#                 models.F('location').distance_from(
+#                     models.Point(order.delivery_longitude,
+#                                  order.delivery_latitude)
+#                 ),
+#                 output_field=models.DecimalField()
+#             )
+#     ) \
+#         .order_by('distance') \
+#         .first()
+
+#     if nearest_rider:
+#         order.rider = nearest_rider.user  # Assign the rider
+#         order.save()
+#         nearest_rider.is_available = False  # Mark the rider as unavailable
+#         nearest_rider.save()
+
 class ManualOrder(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),
@@ -209,11 +312,18 @@ class ManualOrder(models.Model):
         ('piece', 'Piece'),
     )
 
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    customer = models.ForeignKey(
+        'delivery.Customer',
+        on_delete=models.CASCADE,
+        related_name='manual_orders', null=True
     )
     rider = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, limit_choices_to={'is_staff': True}, related_name='assigned_orders'
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={'is_staff': True},
+        related_name='assigned_orders'
     )
     name = models.CharField(max_length=255, blank=True, null=True)
     mobile_number = models.CharField(max_length=15, blank=True, null=True)
@@ -245,53 +355,74 @@ class ManualOrder(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # Latitude and longitude fields to store location without using GeoDjango
+    # Latitude and longitude fields for customer's detected location
     delivery_latitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True
-    )  # For storing the latitude of delivery location
+    )
     delivery_longitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True
-    )  # For storing the longitude of delivery location
+    )
 
     def __str__(self):
-        return f'Manual Order {self.id} by {self.user.username}'
+        return f'Manual Order {self.id} by {self.customer.user.first_name}'
 
     def is_time_expired(self):
         """Check if 20 minutes have passed since the order was placed."""
-        time_elapsed = timezone.now() - self.created_at
+        time_elapsed = now() - self.created_at
         return time_elapsed >= timedelta(minutes=20)
 
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)  # Save the order first
-        # Assign a rider only if not already assigned and location is provided
+        # Automatically assign location if not already set
+        if not self.delivery_latitude or not self.delivery_longitude:
+            self.delivery_latitude, self.delivery_longitude = detect_customer_location(
+                self.customer)
+        super().save(*args, **kwargs)  # Save the order
+        # Assign a rider if not already assigned and location is provided
         if not self.rider and self.delivery_latitude and self.delivery_longitude:
             assign_rider_to_order(self)
 
 
-def assign_rider_to_order(order):
-    """
-    Assign the nearest available rider to the given order.
-    """
-    # Assuming the Rider model now has latitude and longitude fields
-    nearest_rider = Rider.objects.filter(is_available=True) \
-        .filter(latitude__isnull=False, longitude__isnull=False) \
-        .annotate(
-            distance=models.ExpressionWrapper(
-                models.F('location').distance_from(
-                    models.Point(order.delivery_longitude,
-                                 order.delivery_latitude)
-                ),
-                output_field=models.DecimalField()
-            )
-    ) \
-        .order_by('distance') \
-        .first()
+def detect_customer_location(customer):
+    # Assume customer has saved location or use some logic to get it
+    return customer.address_latitude, customer.address_longitude
 
+
+def assign_rider_to_order(order):
+    # Retrieve all riders (staff users)
+    riders = settings.AUTH_USER_MODEL.objects.filter(is_staff=True)
+
+    # List of rider locations (latitude, longitude)
+    rider_locations = []
+    for rider in riders:
+        rider_location = get_rider_location(rider)
+        if rider_location:
+            rider_locations.append((rider, rider_location))
+
+    # Find the nearest rider
+    nearest_rider = None
+    shortest_distance = float('inf')
+    for rider, location in rider_locations:
+        distance = calculate_distance(
+            order.delivery_latitude, order.delivery_longitude, location[0], location[1])
+        if distance < shortest_distance:
+            shortest_distance = distance
+            nearest_rider = rider
+
+    # Assign the nearest rider to the order
     if nearest_rider:
-        order.rider = nearest_rider.user  # Assign the rider
+        order.rider = nearest_rider
         order.save()
-        nearest_rider.is_available = False  # Mark the rider as unavailable
-        nearest_rider.save()
+
+
+def get_rider_location(rider):
+    # Assume riders have a location attribute or a method to get their location
+    # Example of profile with location data
+    return rider.profile.latitude, rider.profile.longitude
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    # Calculate distance between two lat-lon points using geopy
+    return geodesic((lat1, lon1), (lat2, lon2)).kilometers
 
 
 class CompanyWallet(models.Model):

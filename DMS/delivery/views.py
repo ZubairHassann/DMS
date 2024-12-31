@@ -159,6 +159,7 @@ class CustomerWalletView(APIView):
         except CustomerWallet.DoesNotExist:
             return Response({"message": "Customer wallet not found."}, status=status.HTTP_404_NOT_FOUND)
 
+
 class CompanyWalletView(APIView):
     permission_classes = [IsSuperUser]
     authentication_classes = [JWTAuthentication, SessionAuthentication]

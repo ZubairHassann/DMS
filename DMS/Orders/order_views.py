@@ -7,6 +7,10 @@ from rest_framework.response import Response
 from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.views import APIView
+from delivery.permissions import IsSuperUser
+from django.contrib.auth.models import User
+from django.utils import timezone
 
 
 class ManualOrderViewSet(viewsets.ModelViewSet):
@@ -160,3 +164,24 @@ def complete_order(request, order_id):
         return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ManualOrderCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ManualOrderSerializer(data=request.data)
+        if serializer.is_valid():
+            # Link order to logged-in customer
+            serializer.save(customer=request.user.customer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminOrderListView(APIView):
+    permission_classes = [IsSuperUser]  # Only admin can view
+
+    def get(self, request):
+        orders = ManualOrder.objects.all()
+        serializer = ManualOrderSerializer(orders, many=True)
+        return Response(serializer.data)
