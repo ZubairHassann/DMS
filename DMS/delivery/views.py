@@ -5,11 +5,11 @@ from rest_framework.authtoken.models import Token
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
-from rest_framework import status, viewsets, permissions, generics
+from rest_framework import status, viewsets
 from .serializers import LoginSerializer, RiderSerializer, CustomerSerializer, CustomerWalletSerializer, RiderWalletSerializer, CompanyWalletSerializer
 from .models import CustomUser, Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
+from .serializers import RiderSerializer
 
 # class AdminRegisterRiderView(viewsets.ModelViewSet):
 #     queryset = CustomUser.objects.all()
@@ -49,6 +49,37 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 #         serializer.save()
 #         return Response({"message": "User account updated successfully."}, status=status.HTTP_200_OK)
 #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class UpdateRiderLocationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        rider = Rider.objects.get(user=request.user)
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+
+        if not latitude or not longitude:
+            return Response({"error": "Latitude and Longitude are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        rider.current_latitude = latitude
+        rider.current_longitude = longitude
+        rider.save()
+
+        return Response({"message": "Location updated successfully."})
+
+
+class GetCustomerLocationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, customer_id):
+        from django.shortcuts import get_object_or_404
+
+        customer = get_object_or_404(Customer, id=customer_id)
+        data = {
+            "latitude": customer.latitude,
+            "longitude": customer.longitude,
+            "address": customer.address,
+        }
+        return Response(data)
 
 
 class LoginViewSet(viewsets.ViewSet):
@@ -93,14 +124,22 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 
 class RiderWalletView(APIView):
-    permission_classes = [IsStaffUser]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication, SessionAuthentication]
 
     def get(self, request):
         # Assuming the authenticated user is a rider
-        wallet = RiderWallet.objects.get(rider=request.user)
-        serializer = RiderWalletSerializer(wallet)
-        return Response(serializer.data)
+        try:
+            # Get the Rider object linked to the authenticated user
+            rider = Rider.objects.get(user=request.user)
+            # Query wallet using the Rider instance
+            wallet = RiderWallet.objects.get(rider=rider)
+            serializer = RiderWalletSerializer(wallet)
+            return Response(serializer.data)
+        except Rider.DoesNotExist:
+            return Response({"message": "Rider profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        except RiderWallet.DoesNotExist:
+            return Response({"message": "Rider wallet not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class CustomerWalletView(APIView):
@@ -108,11 +147,17 @@ class CustomerWalletView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
 
     def get(self, request):
-        # Assuming the authenticated user is a customer
-        wallet = CustomerWallet.objects.get(customer=request.user)
-        serializer = CustomerWalletSerializer(wallet)
-        return Response(serializer.data)
-
+        try:
+            # Get the Customer object linked to the authenticated user
+            customer = Customer.objects.get(user=request.user)
+            # Query wallet using the Customer instance
+            wallet = CustomerWallet.objects.get(customer=customer)
+            serializer = CustomerWalletSerializer(wallet)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({"message": "Customer profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        except CustomerWallet.DoesNotExist:
+            return Response({"message": "Customer wallet not found."}, status=status.HTTP_404_NOT_FOUND)
 
 class CompanyWalletView(APIView):
     permission_classes = [IsSuperUser]

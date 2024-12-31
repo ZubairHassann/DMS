@@ -1,10 +1,11 @@
 from rest_framework import status, generics
-from delivery.serializers import RiderSignupSerializer, CustomerSignupSerializer
-from .auth_serializers import ResetPasswordSerializer,ChangePasswordSerializer,ForgotPasswordSerializer
+from delivery.serializers import RiderSignupSerializer, CustomerSignupSerializer,CustomerWalletSerializer
+from delivery.models import CustomerWallet
+from .auth_serializers import ResetPasswordSerializer, ChangePasswordSerializer, ForgotPasswordSerializer
 from rest_framework.response import Response
 from delivery.models import Customer
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -19,11 +20,25 @@ User = get_user_model()
 
 
 class RiderSignupView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         serializer = RiderSignupSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Rider account created successfully'}, status=status.HTTP_201_CREATED)
+            rider = serializer.save()  # This will return the created rider instance
+
+            # Check if the rider now has a wallet
+            if hasattr(rider, 'rider_wallet'):  # Ensure that the 'rider_wallet' relation exists
+                wallet_status = 'Wallet created successfully.'
+            else:
+                wallet_status = 'Failed to create wallet.'
+
+            return Response({
+                'message': 'Rider account created successfully',
+                'rider_id': rider.id,  # You can include other details like rider id or name
+                'wallet_status': wallet_status,  # Added status to confirm wallet creation
+            }, status=status.HTTP_201_CREATED)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -37,6 +52,24 @@ class CustomerSignupView(generics.CreateAPIView):
             serializer.save()
             return Response({'message': 'Customer account created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomerWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def get(self, request):
+        try:
+            # Get the customer instance related to the authenticated user
+            customer = Customer.objects.get(user=request.user)
+            # Get the wallet for the customer
+            wallet = CustomerWallet.objects.get(customer=customer)
+            serializer = CustomerWalletSerializer(wallet)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+        except CustomerWallet.DoesNotExist:
+            return Response({"error": "Wallet not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class LogoutView(APIView):
@@ -89,7 +122,8 @@ class ForgotPasswordView(APIView):
             user = User.objects.get(email=email)
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            reset_link = f"https://smms-app-ec48c9-7ad1bc-65-108-245-140.traefik.me/auth/forgot-password?uid={uid}&token={token}"
+            reset_link = f"https://smms-app-ec48c9-7ad1bc-65-108-245-140.traefik.me/auth/forgot-password?uid={
+                uid}&token={token}"
 
             send_mail(
                 "Password Reset Request",

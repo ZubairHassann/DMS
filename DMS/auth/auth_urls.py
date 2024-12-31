@@ -8,9 +8,9 @@ router = routers.DefaultRouter()
 
 urlpatterns = [
 
-    path("logout", LogoutView.as_view(), name="logout"),
-    path('customer/', CustomerSignupView.as_view(), name='customer-signup'),
-    path('rider/', RiderSignupView.as_view(), name='rider-signup'),
+    path("logout/", LogoutView.as_view(), name="logout"),
+    path('customer-signup/', CustomerSignupView.as_view(), name='customer-signup'),
+    path('rider-signup/', RiderSignupView.as_view(), name='rider-signup'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path("change-password/", ChangePasswordView.as_view(), name="change-password"),

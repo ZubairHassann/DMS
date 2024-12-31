@@ -1,7 +1,6 @@
 from django.urls import include, path
 from rest_framework import routers
-from .views import  RiderViewSet, CustomerViewSet, CustomerWalletView, CompanyWalletView, RiderWalletView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .views import RiderViewSet, CustomerViewSet, CustomerWalletView, CompanyWalletView, RiderWalletView, UpdateRiderLocationView, GetCustomerLocationView
 
 router = routers.DefaultRouter()
 # router.register(r'Admin', AdminRegisterRiderView,
@@ -14,8 +13,8 @@ router = routers.DefaultRouter()
 #                 basename='rider/signup')
 
 
-router.register(r'rider', RiderViewSet, basename='rider')
-router.register(r'customer', CustomerViewSet, basename='Customer')
+router.register(r'riderProfile', RiderViewSet, basename='rider')
+router.register(r'customerProfile', CustomerViewSet, basename='Customer')
 
 
 urlpatterns = [
@@ -23,4 +22,7 @@ urlpatterns = [
     path("Comapany-Wallet", CompanyWalletView.as_view(), name='comapany-wallet'),
     path("Customer-Wallet", CustomerWalletView.as_view(), name='customer-wallet'),
     path("Rider-Wallet", RiderWalletView.as_view(), name='rider-wallet'),
+    path("CustomerLocations", GetCustomerLocationView.as_view(),
+         name='CustomerLocations'),
+    path("RiderLocation", UpdateRiderLocationView.as_view(), name='RiderLocation'),
 ]

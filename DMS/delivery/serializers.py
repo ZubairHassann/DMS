@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import CustomUser, Rider, Customer,CustomerWallet,RiderWallet,CompanyWallet
+from .models import CustomUser, Rider, Customer, CustomerWallet, RiderWallet, CompanyWallet
 
 
 class CustomUserSerializer(serializers.ModelSerializer):
@@ -82,18 +82,20 @@ class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = ['id', 'user', 'address',
-                  'contact_number', 'created_at', 'updated_at']
+                  'contact_number',]
 
 
 class RiderSignupSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    password = serializers.CharField(
+        write_only=True, style={'input_type': 'password'})
 
     class Meta:
         model = Rider
-        fields = ['email', 'first_name', 'last_name', 'password', 'vehicle_type', 'license_number', 'contact_number', 'address']
+        fields = ['email', 'first_name', 'last_name', 'password',
+                  'vehicle_type', 'license_number', 'contact_number', 'address']
 
     def create(self, validated_data):
         # Extract user data
@@ -112,6 +114,13 @@ class RiderSignupSerializer(serializers.ModelSerializer):
 
         # Create the rider
         rider = Rider.objects.create(user=user, **validated_data)
+
+        # Create the rider's wallet
+        rider_wallet = RiderWallet.objects.create(rider=rider)
+
+        # Optionally, you can add default funds to the wallet if required
+        rider_wallet.add_funds(0)  # Add zero or default value
+
         return rider
 
 
@@ -122,15 +131,13 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {'password': {'write_only': True}}
 
 
-
-
-
 class CustomerSignupSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
     password = serializers.CharField(
         write_only=True, style={'input_type': 'password'})
+    address = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = Customer
@@ -154,6 +161,8 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
 
         customer = Customer.objects.create(user=user, **validated_data)
         return customer
+
+
 class RiderWalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = RiderWallet
@@ -163,10 +172,50 @@ class RiderWalletSerializer(serializers.ModelSerializer):
 class CustomerWalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerWallet
-        fields = ['customer', 'balance']
+        fields = ['balance']
+
+
+class CustomerSignupSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(write_only=True)
+    first_name = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(write_only=True)
+    password = serializers.CharField(
+        write_only=True, style={'input_type': 'password'})
+
+    class Meta:
+        model = Customer
+        fields = ['email', 'first_name', 'last_name',
+                  'password', 'address', 'contact_number']
+
+    def create(self, validated_data):
+        # Extract user data
+        email = validated_data.pop('email')
+        first_name = validated_data.pop('first_name')
+        last_name = validated_data.pop('last_name')
+        password = validated_data.pop('password')
+
+        # Create the user
+        user = CustomUser.objects.create(
+            email=email, first_name=first_name, last_name=last_name)
+        user.set_password(password)
+        user.save()
+
+        # Create the customer
+        customer = Customer.objects.create(user=user, **validated_data)
+        return customer
 
 
 class CompanyWalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = CompanyWallet
         fields = ['balance']
+
+
+class RiderSerializer(serializers.ModelSerializer):
+    # To represent user by first name and last name
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = Rider
+        fields = ['id', 'user', 'vehicle_type', 'license_number',
+                  'contact_number', 'address',  'is_available', 'created_at', 'updated_at']

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import CustomUser, Rider, Customer, CompanyWallet
+from .models import CustomUser, Rider, CustomerWallet, RiderWallet
 
 
 class CustomUserAdmin(BaseUserAdmin):
@@ -39,11 +39,6 @@ class RiderAdmin(admin.ModelAdmin):
     list_filter = ('vehicle_type', 'is_available', 'created_at')
 
 
-@admin.register(Customer)
-class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'contact_number', 'address', 'created_at')
-    search_fields = ('user__email', 'user__first_name', 'user__last_name')
-    list_filter = ('created_at',)
-
-
 admin.site.register(CustomUser, CustomUserAdmin)
+admin.site.register(RiderWallet)
+admin.site.register(CustomerWallet)
