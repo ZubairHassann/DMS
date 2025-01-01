@@ -1,9 +1,17 @@
 from rest_framework import status, generics
-from delivery.serializers import RiderSignupSerializer, CustomerSignupSerializer, CustomerWalletSerializer
+from delivery.serializers import (
+    RiderSignupSerializer,
+    CustomerSignupSerializer,
+    CustomerWalletSerializer,
+)
 from delivery.models import CustomerWallet
-from .auth_serializers import ResetPasswordSerializer, ChangePasswordSerializer, ForgotPasswordSerializer
+from .auth_serializers import (
+    ResetPasswordSerializer,
+    ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+)
 from rest_framework.response import Response
-from delivery.models import Customer,RiderWallet
+from delivery.models import Customer, RiderWallet
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -19,28 +27,27 @@ from delivery.permissions import IsSuperUser
 User = get_user_model()
 
 
-
-
 class RiderSignupView(APIView):
     permission_classes = [IsSuperUser]
 
     def post(self, request):
         serializer = RiderSignupSerializer(data=request.data)
-        print(serializer)
         if serializer.is_valid():
-            rider = serializer.save()  # This will return the created rider instance
+            rider = serializer.save()
 
-            # Check if the rider now has a wallet
-            if hasattr(rider, 'rider_wallet'):  # Ensure that the 'rider_wallet' relation exists
-                wallet_status = 'Wallet created successfully.'
+            if hasattr(rider, "rider_wallet"):
+                wallet_status = "Wallet created successfully."
             else:
-                wallet_status = 'Failed to create wallet.'
+                wallet_status = "Failed to create wallet."
 
-            return Response({
-                'message': 'Rider account created successfully',
-                'rider_id': rider.id,  # You can include other details like rider id or name
-                'wallet_status': wallet_status,  # Added status to confirm wallet creation
-            }, status=status.HTTP_201_CREATED)
+            return Response(
+                {
+                    "message": "Rider account created successfully",
+                    "rider_id": rider.id,
+                    "wallet_status": wallet_status,
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -53,7 +60,10 @@ class CustomerSignupView(generics.CreateAPIView):
         serializer = CustomerSignupSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({'message': 'Customer account created successfully'}, status=status.HTTP_201_CREATED)
+            return Response(
+                {"message": "Customer account created successfully"},
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -70,9 +80,13 @@ class CustomerWalletView(APIView):
             serializer = CustomerWalletSerializer(wallet)
             return Response(serializer.data)
         except Customer.DoesNotExist:
-            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND
+            )
         except CustomerWallet.DoesNotExist:
-            return Response({"error": "Wallet not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Wallet not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class LogoutView(APIView):
@@ -84,18 +98,15 @@ class LogoutView(APIView):
             if not refresh_token:
                 return Response(
                     {"detail": "Refresh token is required."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
             token = RefreshToken(refresh_token)
             token.blacklist()
-            return Response(
-                {"detail": "Logout successful."},
-                status=status.HTTP_200_OK
-            )
+            return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
                 {"detail": "Invalid token or logout failed."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
 
