@@ -141,9 +141,10 @@ class RiderSignupSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password")
         user = CustomUser.objects.create(
             email=email, first_name=first_name, last_name=last_name,
-            password=password,
             is_rider=True
         )
+        user.set_password(password)
+        user.save()
         rider = Rider.objects.create(user=user, **validated_data)
 
         rider_wallet = RiderWallet.objects.create(rider=rider)
