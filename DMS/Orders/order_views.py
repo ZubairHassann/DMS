@@ -8,9 +8,10 @@ from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
-from delivery.permissions import IsSuperUser
+from delivery.permissions import IsSuperUser, IsRider
 from django.contrib.auth.models import User
 from django.utils import timezone
+from rest_framework.generics import ListAPIView
 
 
 class ManualOrderViewSet(viewsets.ModelViewSet):
@@ -185,3 +186,23 @@ class AdminOrderListView(APIView):
         orders = ManualOrder.objects.all()
         serializer = ManualOrderSerializer(orders, many=True)
         return Response(serializer.data)
+
+
+class RiderOrderListView(ListAPIView):
+    queryset = ManualOrder.objects.all().select_related(
+        'customer')  # Retrieve all orders
+    serializer_class = ManualOrderSerializer
+    permission_classes = [IsAuthenticated, IsRider]
+
+    def get_queryset(self):
+        # All riders should see orders assigned to other riders
+        # Only show orders with an assigned rider
+        return ManualOrder.objects.filter(rider__isnull=False)
+
+    def get_serializer_class(self):
+        """Dynamically remove 'mobile_number' for riders"""
+        if self.request.user.is_staff:  # Only remove for riders
+            self.serializer_class.Meta.fields = [
+                field for field in self.serializer_class.Meta.fields if field != 'mobile_number'
+            ]
+        return self.serializer_class

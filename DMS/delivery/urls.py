@@ -3,16 +3,6 @@ from rest_framework import routers
 from .views import RiderViewSet, CustomerViewSet, CustomerWalletView, CompanyWalletView, RiderWalletView, UpdateRiderLocationView, GetCustomerLocationView
 
 router = routers.DefaultRouter()
-# router.register(r'Admin', AdminRegisterRiderView,
-#                 basename='Admin')
-# router.register(r'Customer-register', CustomerRegisterViewSet,
-#                 basename='Customer-register')
-# router.register(r'customer/signup', CustomerSignupView.as_view(),
-#                 basename='Customer/signup')
-# router.register(r'rider/signup', RiderSignupView.as_view(),
-#                 basename='rider/signup')
-
-
 router.register(r'riderProfile', RiderViewSet, basename='rider')
 router.register(r'customerProfile', CustomerViewSet, basename='Customer')
 

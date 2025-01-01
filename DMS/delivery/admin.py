@@ -5,23 +5,22 @@ from .models import CustomUser, Rider, CustomerWallet, RiderWallet
 
 
 class CustomUserAdmin(BaseUserAdmin):
-
     list_display = ('email', 'first_name', 'last_name',
-                    'is_staff', 'is_active')
-    list_filter = ('is_staff', 'is_active', 'is_owner')
+                    'is_staff', 'is_active', 'is_rider')
+    list_filter = ('is_staff', 'is_active', 'is_owner', 'is_rider')
 
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         (_('Personal info'), {'fields': ('first_name', 'last_name')}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff',
-         'is_superuser', 'groups', 'user_permissions')}),
+         'is_rider', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login',)}),
     )
 
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'password1', 'password2', 'first_name', 'last_name', 'is_active', 'is_staff', 'is_owner'),
+            'fields': ('email', 'password1', 'password2', 'first_name', 'last_name', 'is_active', 'is_staff', 'is_owner', 'is_rider'),
         }),
     )
 
@@ -42,3 +41,4 @@ class RiderAdmin(admin.ModelAdmin):
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(RiderWallet)
 admin.site.register(CustomerWallet)
+# admin.site.unregister(CustomUser)

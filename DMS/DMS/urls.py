@@ -21,7 +21,7 @@ from auth import auth_urls
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('Registration/', include('delivery.urls')),
+    path('Delivery/', include('delivery.urls')),
     path('Orders/', include(order_urls)),
     path('Auth/', include(auth_urls)),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

@@ -74,6 +74,52 @@ class ResetPasswordSerializer(serializers.Serializer):
         return user
 
 
+# class RiderSignupSerializer(serializers.ModelSerializer):
+#     email = serializers.EmailField(write_only=True)
+#     first_name = serializers.CharField(write_only=True)
+#     last_name = serializers.CharField(write_only=True)
+#     password = serializers.CharField(
+#         write_only=True, style={'input_type': 'password'})
+
+#     class Meta:
+#         model = Rider
+#         fields = ['email', 'first_name', 'last_name', 'password',
+#                   'vehicle_type', 'license_number', 'contact_number', 'address']
+
+#     def create(self, validated_data):
+#         # Extract user data
+#         email = validated_data.pop('email')
+#         first_name = validated_data.pop('first_name')
+#         last_name = validated_data.pop('last_name')
+#         password = validated_data.pop('password')
+#         # user = get_user_model().objects.create_user(**validated_data)
+#         # user.is_rider = True
+#         # user.save()
+#         # return user
+
+#         user = CustomUser.objects.create_user(
+#             email=email,
+#             first_name=first_name,
+#             last_name=last_name,
+#             password=password
+#         )
+
+#         # Create the rider
+#         rider = Rider.objects.create(user=user, **validated_data)
+#         rider.save()  # Ensure the rider is saved before creating the wallet
+
+#         try:
+#             # Attempt to create the wallet for the rider
+#             RiderWallet.objects.create(rider=rider)
+#             print(f"Wallet created for rider: {rider.id}")
+#         except Exception as e:
+#             print(f"Error creating wallet: {str(e)}")
+#             # If wallet creation fails, raise a validation error
+#             raise ValidationError("Failed to create wallet for the rider.")
+
+#         return rider
+
+
 class RiderSignupSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     first_name = serializers.CharField(write_only=True)
@@ -93,15 +139,20 @@ class RiderSignupSerializer(serializers.ModelSerializer):
         last_name = validated_data.pop('last_name')
         password = validated_data.pop('password')
 
-        # Create the user
-        user = CustomUser.objects.create_user(
+        # Create the user and explicitly set is_rider = True
+        print(email)
+        user = CustomUser.objects.create(
             email=email,
             first_name=first_name,
             last_name=last_name,
-            password=password
+            password=password,
+            is_rider=True
         )
 
-        # Create the rider
+        # Set is_rider to True
+        user.save()  # Save the user after setting the is_rider field
+
+        # Create the rider associated with the user
         rider = Rider.objects.create(user=user, **validated_data)
         rider.save()  # Ensure the rider is saved before creating the wallet
 

@@ -1,9 +1,9 @@
 from rest_framework import status, generics
-from delivery.serializers import RiderSignupSerializer, CustomerSignupSerializer,CustomerWalletSerializer
+from delivery.serializers import RiderSignupSerializer, CustomerSignupSerializer, CustomerWalletSerializer
 from delivery.models import CustomerWallet
 from .auth_serializers import ResetPasswordSerializer, ChangePasswordSerializer, ForgotPasswordSerializer
 from rest_framework.response import Response
-from delivery.models import Customer
+from delivery.models import Customer,RiderWallet
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -14,16 +14,19 @@ from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.contrib.auth import get_user_model, authenticate
-
+from delivery.permissions import IsSuperUser
 
 User = get_user_model()
 
 
+
+
 class RiderSignupView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsSuperUser]
 
     def post(self, request):
         serializer = RiderSignupSerializer(data=request.data)
+        print(serializer)
         if serializer.is_valid():
             rider = serializer.save()  # This will return the created rider instance
 
