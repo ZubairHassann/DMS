@@ -189,15 +189,16 @@ class AdminOrderListView(APIView):
 
 
 class RiderOrderListView(ListAPIView):
-    queryset = ManualOrder.objects.all().select_related(
-        'customer')  # Retrieve all orders
+    queryset = ManualOrder.objects.all()  # Retrieve all orders
+    print(queryset)
     serializer_class = ManualOrderSerializer
     permission_classes = [IsAuthenticated, IsRider]
 
     def get_queryset(self):
         # All riders should see orders assigned to other riders
         # Only show orders with an assigned rider
-        return ManualOrder.objects.filter(rider__isnull=False)
+        # return ManualOrder.objects.filter(rider__isnull=False)
+        return ManualOrder.objects.all()
 
     def get_serializer_class(self):
         """Dynamically remove 'mobile_number' for riders"""

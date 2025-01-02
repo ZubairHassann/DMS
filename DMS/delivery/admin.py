@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import CustomUser, Rider, CustomerWallet, RiderWallet
+from .models import CustomUser, Rider, CustomerWallet, RiderWallet, ManualOrder
 
 
 class CustomUserAdmin(BaseUserAdmin):
@@ -41,4 +41,5 @@ class RiderAdmin(admin.ModelAdmin):
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(RiderWallet)
 admin.site.register(CustomerWallet)
+admin.site.register(ManualOrder)
 # admin.site.unregister(CustomUser)

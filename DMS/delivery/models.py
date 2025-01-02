@@ -132,7 +132,8 @@ class Customer(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     address = models.TextField(max_length=100, null=False, default='None')
     contact_number = models.CharField(max_length=15)
-    address_latitude = models.FloatField(null=True, blank=True)  # Add this field
+    address_latitude = models.FloatField(
+        null=True, blank=True)  # Add this field
     address_longitude = models.FloatField(null=True, blank=True)
 
     def __str__(self):
@@ -365,7 +366,8 @@ class ManualOrder(models.Model):
     )
 
     def __str__(self):
-        return f'Manual Order {self.id} by {self.customer.user.first_name}'
+        customer_firstName = getattr(self, 'customer.user.first_name', None)
+        return f'Manual Order {self.id} by {customer_firstName}'
 
     def is_time_expired(self):
         """Check if 20 minutes have passed since the order was placed."""

@@ -4,6 +4,7 @@ from datetime import timezone, timedelta
 from django.utils.timezone import now
 from django.utils import timezone
 
+
 class ManualOrderSerializer(serializers.ModelSerializer):
     product_image = serializers.ImageField(required=False, allow_null=True)
     invoice = serializers.ImageField(required=False, allow_null=True)
@@ -22,7 +23,7 @@ class ManualOrderSerializer(serializers.ModelSerializer):
                             'updated_at', 'customer', 'rider']
 
     def get_time_remaining(self, obj):
-        elapsed_time = timezone.now() - obj.created_at  
+        elapsed_time = timezone.now() - obj.created_at
         remaining_time = timedelta(minutes=20) - elapsed_time
 
         if remaining_time.total_seconds() > 0:
@@ -30,7 +31,7 @@ class ManualOrderSerializer(serializers.ModelSerializer):
         else:
             return 0
 
-    def get_customer_mobile(self, obj):
+    def get_customer_mobile(self, obj: ManualOrder):
         """Return mobile number if the user is an admin or the customer who placed the order."""
         request = self.context.get('request')
         if request and request.user.is_staff:
@@ -53,7 +54,7 @@ class ManualOrderSerializer(serializers.ModelSerializer):
             self.fields.pop('status')
 
         if request and not request.user.is_staff:
-            self.fields.pop('mobile_number')
+            self.fields.pop('customer_mobile')
 
     def validate(self, data):
         if not data.get('name') or not data.get('address'):
