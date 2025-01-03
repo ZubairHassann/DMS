@@ -180,17 +180,14 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # Extract user data
         email = validated_data.pop("email")
         first_name = validated_data.pop("first_name")
         last_name = validated_data.pop("last_name")
         password = validated_data.pop("password")
-
-        # Create the user
         user = CustomUser.objects.create_user(
             email=email, first_name=first_name, last_name=last_name, password=password
         )
-        user.set_password(password)  # Set password using set_password for security
+        user.set_password(password)
         user.save()
 
         customer = Customer.objects.create(user=user, **validated_data)
@@ -227,20 +224,19 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # Extract user data
         email = validated_data.pop("email")
         first_name = validated_data.pop("first_name")
         last_name = validated_data.pop("last_name")
         password = validated_data.pop("password")
 
-        # Create the user
+       
         user = CustomUser.objects.create(
             email=email, first_name=first_name, last_name=last_name
         )
         user.set_password(password)
         user.save()
 
-        # Create the customer
+        
         customer = Customer.objects.create(user=user, **validated_data)
         return customer
 
@@ -252,7 +248,6 @@ class CompanyWalletSerializer(serializers.ModelSerializer):
 
 
 class RiderSerializer(serializers.ModelSerializer):
-    # To represent user by first name and last name
     user = serializers.StringRelatedField()
 
     class Meta:

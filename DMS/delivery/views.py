@@ -73,9 +73,7 @@ class GetCustomerLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Assuming the Customer model has a OneToOneField to the User model
         try:
-            # Access the Customer related to the logged-in user
             print(f"Logged-in user: {request.user}")
             customer = request.user.customer
             data = {
@@ -91,10 +89,7 @@ class GetCustomerLocationView(APIView):
     def post(self, request):
         """Update the location of the logged-in customer."""
         try:
-            # Access the Customer related to the logged-in user
             customer = request.user.customer
-
-            # Fetch latitude and longitude from the request data
             latitude = request.data.get('latitude')
             longitude = request.data.get('longitude')
 
@@ -104,7 +99,6 @@ class GetCustomerLocationView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             address = self.get_address_from_coordinates(latitude, longitude)
-            # Update the customer's location
             customer.latitude = latitude
             customer.longitude = longitude
             customer.address = address
@@ -141,7 +135,7 @@ class GetCustomerLocationView(APIView):
 
 
 def get_location(request):
-    latitude = 24.8607  # Example latitude (you can use dynamic data)
+    latitude = 24.8607  
     longitude = 67.0011
     if latitude and longitude:
         address = GetCustomerLocationView().get_address_from_coordinates(latitude, longitude)
@@ -195,11 +189,8 @@ class RiderWalletView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
 
     def get(self, request):
-        # Assuming the authenticated user is a rider
         try:
-            # Get the Rider object linked to the authenticated user
             rider = Rider.objects.get(user=request.user)
-            # Query wallet using the Rider instance
             wallet = RiderWallet.objects.get(rider=rider)
             serializer = RiderWalletSerializer(wallet)
             return Response(serializer.data)
@@ -215,9 +206,7 @@ class CustomerWalletView(APIView):
 
     def get(self, request):
         try:
-            # Get the Customer object linked to the authenticated user
             customer = Customer.objects.get(user=request.user)
-            # Query wallet using the Customer instance
             wallet = CustomerWallet.objects.get(customer=customer)
             serializer = CustomerWalletSerializer(wallet)
             return Response(serializer.data)
@@ -232,6 +221,6 @@ class CompanyWalletView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
 
     def get(self, request):
-        wallet = CompanyWallet.objects.first()  # Assuming a single wallet instance
+        wallet = CompanyWallet.objects.first()  
         serializer = CompanyWalletSerializer(wallet)
         return Response(serializer.data)
