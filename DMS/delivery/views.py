@@ -51,22 +51,79 @@ from django.http import JsonResponse
 #         serializer.save()
 #         return Response({"message": "User account updated successfully."}, status=status.HTTP_200_OK)
 #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-class UpdateRiderLocationView(APIView):
+class GetRiderLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        try:
+            print(f"Logged-in user: {request.user}")
+            rider = request.user.rider
+            data = {
+                "latitude": rider.latitude,
+                "longitude": rider.longitude,
+                "address": rider.address,
+            }
+            return Response(data)
+        except AttributeError:
+            print("Rider object not found for the logged-in user.")
+            return Response({"error": "Rider details not found for the logged-in user."}, status=404)
+
     def post(self, request):
-        rider = Rider.objects.get(user=request.user)
-        latitude = request.data.get('latitude')
-        longitude = request.data.get('longitude')
+        """Update the location of the logged-in rider."""
+        try:
+            rider = request.user.rider
+            latitude = request.data.get('latitude')
+            longitude = request.data.get('longitude')
 
-        if not latitude or not longitude:
-            return Response({"error": "Latitude and Longitude are required."}, status=status.HTTP_400_BAD_REQUEST)
+            if latitude is None or longitude is None:
+                return Response(
+                    {"error": "Latitude and longitude are required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            address = self.get_address_from_coordinates(latitude, longitude)
+            rider.latitude = latitude
+            rider.longitude = longitude
+            rider.address = address
+            rider.save()
 
-        rider.current_latitude = latitude
-        rider.current_longitude = longitude
-        rider.save()
+            return Response(
+                {"success": "Location updated successfully."},
+                status=status.HTTP_200_OK
+            )
+        except AttributeError:
+            return Response({"error": "Rider details not found for the logged-in user."}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({"message": "Location updated successfully."})
+    def get_address_from_coordinates(self, latitude, longitude):
+        """Fetch address from latitude and longitude using LocationIQ API."""
+        try:
+            api_url = "https://us1.locationiq.com/v1/reverse.php"
+            api_key = "pk.8dcc4459a73a29fa7b1d8c7f011d1d7f"
+            params = {
+                "key": api_key,
+                "lat": latitude,
+                "lon": longitude,
+                "format": "json",
+            }
+            response = requests.get(api_url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("display_name", "Address not found")
+            return "Address not found"
+        except Exception as e:
+            print(f"Error: {e}")
+            return "Error fetching address"
+
+# Example usage in a Django view for Rider location
+
+
+def get_rider_location(request):
+    latitude = 24.8607  
+    longitude = 67.0011
+    if latitude and longitude:
+        address = GetRiderLocationView().get_address_from_coordinates(latitude, longitude)
+        return JsonResponse({"address": address})
+    return JsonResponse({"error": "Latitude and Longitude are required"}, status=400)
+
 
 
 class GetCustomerLocationView(APIView):
