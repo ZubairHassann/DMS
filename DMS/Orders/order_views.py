@@ -12,6 +12,7 @@ from delivery.permissions import IsSuperUser, IsRider
 from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework.generics import ListAPIView
+from rest_framework.exceptions import ValidationError
 
 
 class ManualOrderViewSet(viewsets.ModelViewSet):
@@ -167,15 +168,36 @@ def complete_order(request, order_id):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ManualOrderCreateView(APIView):
+class CreateManualOrder(APIView):
+    """
+    API view to create a manual order. 
+    Only authenticated customers can create an order for themselves.
+    """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        serializer = ManualOrderSerializer(data=request.data)
+    def post(self, request, *args, **kwargs):
+        # Ensure that the logged-in user is allowed to create the order
+        if not request.user.is_authenticated:
+            raise ValidationError(
+                "Authentication is required to create an order.")
+
+        # Add the logged-in user to the data for the serializer
+        request_data = request.data
+        request_data['user'] = request.user.id
+
+        # Serialize the data using ManualOrderSerializer
+        serializer = ManualOrderSerializer(
+            data=request_data, context={'request': request})
+
         if serializer.is_valid():
-            # Link order to logged-in customer
-            serializer.save(customer=request.user.customer)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Save the order to the database
+            manual_order = serializer.save()
+            return Response(
+                {"message": "Order created successfully.", "order": serializer.data},
+                status=status.HTTP_201_CREATED,
+            )
+
+        # If the data is not valid, return errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -189,21 +211,18 @@ class AdminOrderListView(APIView):
 
 
 class RiderOrderListView(ListAPIView):
-    queryset = ManualOrder.objects.all()  # Retrieve all orders
-    print(queryset)
     serializer_class = ManualOrderSerializer
-    permission_classes = [IsAuthenticated, IsRider]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # All riders should see orders assigned to other riders
-        # Only show orders with an assigned rider
-        # return ManualOrder.objects.filter(rider__isnull=False)
-        return ManualOrder.objects.all()
+        user = self.request.user
+        try:
+            # Get the Rider instance for the current user
+            rider = Rider.objects.get(user=user)
+            print(rider)
+        except Rider.DoesNotExist:
+            # Return an empty queryset if the user is not a rider
+            return ManualOrder.objects.none()
 
-    def get_serializer_class(self):
-        """Dynamically remove 'mobile_number' for riders"""
-        if self.request.user.is_staff:  # Only remove for riders
-            self.serializer_class.Meta.fields = [
-                field for field in self.serializer_class.Meta.fields if field != 'mobile_number'
-            ]
-        return self.serializer_class
+        # Filter orders assigned to this rider
+        return ManualOrder.objects.filter(rider=rider)

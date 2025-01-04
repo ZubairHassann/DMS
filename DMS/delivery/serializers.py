@@ -25,52 +25,6 @@ class CustomUserSerializer(serializers.ModelSerializer):
         read_only_fields = ["is_active", "is_staff", "is_owner"]
 
 
-class RiderRegistrationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = [
-            "email",
-            "first_name",
-            "last_name",
-            "password",
-            "is_owner",
-            "is_staff",
-        ]
-        extra_kwargs = {
-            "password": {"write_only": True},
-            "is_owner": {"default": False},
-        }
-
-    def create(self, validated_data):
-        user = CustomUser.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            first_name=validated_data["first_name"],
-            last_name=validated_data["last_name"],
-            is_staff=True,
-            is_owner=validated_data.get("is_owner", False),
-        )
-        return user
-
-
-class CustomerRegistrationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = ["id", "email", "first_name", "last_name", "password"]
-        extra_kwargs = {
-            "password": {"write_only": True},
-        }
-
-    def create(self, validated_data):
-        user = CustomUser.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            first_name=validated_data["first_name"],
-            last_name=validated_data["last_name"],
-        )
-        return user
-
-
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -111,7 +65,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "address",
-            "contact_number",
+            "phone_number",
         ]
 
 
@@ -119,7 +73,8 @@ class RiderSignupSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    password = serializers.CharField(
+        write_only=True, style={"input_type": "password"})
 
     class Meta:
         model = Rider
@@ -141,7 +96,9 @@ class RiderSignupSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password")
         user = CustomUser.objects.create(
             email=email, first_name=first_name, last_name=last_name,
-            is_rider=True
+            # is_rider=True
+            is_staff=True,
+            is_owner=validated_data.get("is_owner", False),
         )
         user.set_password(password)
         user.save()
@@ -165,7 +122,8 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    password = serializers.CharField(
+        write_only=True, style={"input_type": "password"})
     address = serializers.CharField(write_only=True, required=True)
 
     class Meta:
@@ -176,7 +134,7 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
             "last_name",
             "password",
             "address",
-            "contact_number",
+            "phone_number",
         ]
 
     def create(self, validated_data):
@@ -188,6 +146,7 @@ class CustomerSignupSerializer(serializers.ModelSerializer):
             email=email, first_name=first_name, last_name=last_name, password=password
         )
         user.set_password(password)
+        user.is_staff = True
         user.save()
 
         customer = Customer.objects.create(user=user, **validated_data)
@@ -204,41 +163,6 @@ class CustomerWalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerWallet
         fields = ["balance"]
-
-
-class CustomerSignupSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(write_only=True)
-    first_name = serializers.CharField(write_only=True)
-    last_name = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, style={"input_type": "password"})
-
-    class Meta:
-        model = Customer
-        fields = [
-            "email",
-            "first_name",
-            "last_name",
-            "password",
-            "address",
-            "contact_number",
-        ]
-
-    def create(self, validated_data):
-        email = validated_data.pop("email")
-        first_name = validated_data.pop("first_name")
-        last_name = validated_data.pop("last_name")
-        password = validated_data.pop("password")
-
-       
-        user = CustomUser.objects.create(
-            email=email, first_name=first_name, last_name=last_name
-        )
-        user.set_password(password)
-        user.save()
-
-        
-        customer = Customer.objects.create(user=user, **validated_data)
-        return customer
 
 
 class CompanyWalletSerializer(serializers.ModelSerializer):

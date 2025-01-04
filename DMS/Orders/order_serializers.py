@@ -1,8 +1,7 @@
 from rest_framework import serializers
-from delivery.models import ManualOrder
-from datetime import timezone, timedelta
-from django.utils.timezone import now
+from delivery.models import ManualOrder, CustomUser
 from django.utils import timezone
+from datetime import timedelta
 
 
 class ManualOrderSerializer(serializers.ModelSerializer):
@@ -14,13 +13,12 @@ class ManualOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = ManualOrder
         fields = [
-            'id', 'customer', 'name', 'customer_mobile', 'address', 'product_name',
+            'id', 'customer', 'name', 'mobile_number', 'address', 'product_name',
             'product_image', 'quantity', 'unit', 'order_details', 'total_price',
             'ride_charges', 'paid_amount', 'status', 'rider', 'invoice', 'created_at',
-            'updated_at', 'time_remaining'
+            'updated_at', 'time_remaining', 'customer_mobile'
         ]
-        read_only_fields = ['id', 'created_at',
-                            'updated_at', 'customer', 'rider']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'user', 'rider']
 
     def get_time_remaining(self, obj):
         elapsed_time = timezone.now() - obj.created_at
@@ -31,12 +29,12 @@ class ManualOrderSerializer(serializers.ModelSerializer):
         else:
             return 0
 
-    def get_customer_mobile(self, obj: ManualOrder):
+    def get_customer_mobile(self, obj):
         """Return mobile number if the user is an admin or the customer who placed the order."""
         request = self.context.get('request')
         if request and request.user.is_staff:
             return obj.mobile_number
-        elif request and request.user == obj.customer:  # Ensure you use 'customer' here instead of 'user'
+        elif request and request.user == obj.user:
             return obj.mobile_number
         return None
 
@@ -54,7 +52,7 @@ class ManualOrderSerializer(serializers.ModelSerializer):
             self.fields.pop('status')
 
         if request and not request.user.is_staff:
-            self.fields.pop('customer_mobile')
+            self.fields.pop('mobile_number')
 
     def validate(self, data):
         if not data.get('name') or not data.get('address'):
