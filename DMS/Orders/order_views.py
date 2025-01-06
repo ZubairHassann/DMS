@@ -222,7 +222,7 @@ class RiderOrderListView(ListAPIView):
             print(rider)
         except Rider.DoesNotExist:
             # Return an empty queryset if the user is not a rider
-            return ManualOrder.objects.none()
+            return ManualOrder.objects.all()
 
         # Filter orders assigned to this rider
-        return ManualOrder.objects.filter(rider=rider)
+        return ManualOrder.objects.all()

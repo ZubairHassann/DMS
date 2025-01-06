@@ -34,7 +34,7 @@ class ManualOrderSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user.is_staff:
             return obj.mobile_number
-        elif request and request.user == obj.user:
+        elif request and request.user == obj.customer:
             return obj.mobile_number
         return None
 
