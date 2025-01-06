@@ -12,8 +12,6 @@ urlpatterns = [
     path("Comapany-Wallet", CompanyWalletView.as_view(), name='comapany-wallet'),
     path("Customer-Wallet", CustomerWalletView.as_view(), name='customer-wallet'),
     path("Rider-Wallet", RiderWalletView.as_view(), name='rider-wallet'),
-    # path("CustomerLocations", GetCustomerLocationView.as_view(),
-    #      name='CustomerLocations'),
     path('CustomerLocations/',
          GetCustomerLocationView.as_view(), name='customer_location'),
     path("RiderLocation", GetRiderLocationView.as_view(), name='RiderLocation'),

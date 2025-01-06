@@ -5,6 +5,7 @@ from datetime import timedelta
 
 
 class ManualOrderSerializer(serializers.ModelSerializer):
+    customer_name = serializers.SerializerMethodField()
     product_image = serializers.ImageField(required=False, allow_null=True)
     invoice = serializers.ImageField(required=False, allow_null=True)
     time_remaining = serializers.SerializerMethodField()
@@ -13,12 +14,23 @@ class ManualOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = ManualOrder
         fields = [
-            'id', 'customer', 'name', 'mobile_number', 'address', 'product_name',
+            'id', 'customer', 'customer_name', 'name', 'mobile_number', 'address', 'product_name',
             'product_image', 'quantity', 'unit', 'order_details', 'total_price',
             'ride_charges', 'paid_amount', 'status', 'rider', 'invoice', 'created_at',
             'updated_at', 'time_remaining', 'customer_mobile'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'user', 'rider']
+
+    def create(self, validated_data):
+        customer = validated_data.pop('customer')
+        order = ManualOrder.objects.create(customer=customer, **validated_data)
+        return order
+
+    def get_customer_name(self, obj):
+        """Retrieve the customer's full name."""
+        if obj.customer and obj.customer.user:
+            return f"{obj.customer.user.first_name} {obj.customer.user.last_name}"
+        return None
 
     def get_time_remaining(self, obj):
         elapsed_time = timezone.now() - obj.created_at
@@ -39,7 +51,6 @@ class ManualOrderSerializer(serializers.ModelSerializer):
         return None
 
     def __init__(self, *args, **kwargs):
-        # Pop the request from the context
         request = kwargs['context'].get(
             'request') if 'context' in kwargs else None
         super().__init__(*args, **kwargs)
@@ -55,8 +66,8 @@ class ManualOrderSerializer(serializers.ModelSerializer):
             self.fields.pop('mobile_number')
 
     def validate(self, data):
-        if not data.get('name') or not data.get('address'):
-            raise serializers.ValidationError("Name and address are required.")
+        if not data.get('address'):
+            raise serializers.ValidationError("address is required.")
         if not data.get('product_name'):
             raise serializers.ValidationError("Product name is required.")
         if 'quantity' in data and data.get('quantity') <= 0:

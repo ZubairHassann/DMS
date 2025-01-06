@@ -4,16 +4,15 @@ from delivery.serializers import (
     CustomerSignupSerializer,
     CustomerWalletSerializer,
 )
-from delivery.models import CustomerWallet
+from delivery.models import CustomerWallet,Customer
 from .auth_serializers import (
     ResetPasswordSerializer,
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
 )
 from rest_framework.response import Response
-from delivery.models import Customer, RiderWallet
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -21,7 +20,7 @@ from django.utils.http import urlsafe_base64_encode
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 from delivery.permissions import IsSuperUser
 
 User = get_user_model()
@@ -73,9 +72,7 @@ class CustomerWalletView(APIView):
 
     def get(self, request):
         try:
-            # Get the customer instance related to the authenticated user
             customer = Customer.objects.get(user=request.user)
-            # Get the wallet for the customer
             wallet = CustomerWallet.objects.get(customer=customer)
             serializer = CustomerWalletSerializer(wallet)
             return Response(serializer.data)

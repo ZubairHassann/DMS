@@ -8,11 +8,13 @@ from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
-from delivery.permissions import IsSuperUser, IsRider
+from delivery.permissions import IsSuperUser
 from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework.generics import ListAPIView
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
+from delivery.views import GetCustomerLocationView
+import requests
 
 
 class ManualOrderViewSet(viewsets.ModelViewSet):
@@ -24,28 +26,23 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         user = self.request.user
         if user.is_superuser:
-            # Separate completed and active orders
             completed_orders = ManualOrder.objects.filter(status='delivered')
             active_orders = ManualOrder.objects.exclude(
                 Q(status='delivered') | Q(rider__isnull=True))
             unassigned_orders = ManualOrder.objects.filter(
                 Q(rider=user) | Q(rider__isnull=True))
         elif user.is_staff:
-            # Riders see only orders assigned to them
             completed_orders = ManualOrder.objects.filter(
                 rider=user, status='delivered')
             active_orders = ManualOrder.objects.filter(
                 rider=user).exclude(status='delivered')
             unassigned_orders = None
         else:
-            # Normal users see only their own orders
             completed_orders = ManualOrder.objects.filter(
                 user=user, status='delivered')
             active_orders = ManualOrder.objects.filter(
                 user=user).exclude(status='delivered')
             unassigned_orders = None
-
-        # Serialize the querysets
         completed_orders = self.get_serializer(
             completed_orders, many=True).data
         active_orders = self.get_serializer(active_orders, many=True).data
@@ -62,10 +59,9 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if not user.is_superuser:
-            # Get the order address from the serializer's validated data
             order_address = serializer.validated_data.get('address')
 
-            # Check for available rider based on address
+            
             rider = User.objects.filter(
                 Q(is_superuser=False) & Q(is_staff=True))
             rider = rider.filter(profile__address=order_address).first()
@@ -90,7 +86,7 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
         instance = serializer.instance
 
         if user.is_staff and not user.is_superuser:
-            # Staff users can only update price, status, and invoice fields
+            
             serializer.save(
                 total_price=serializer.validated_data.get(
                     'total_price', instance.total_price),
@@ -98,14 +94,12 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
                     'status', instance.status),
                 invoice=serializer.validated_data.get(
                     'invoice', instance.invoice),
-                rider=instance.rider,  # Preserve rider
-                user=instance.user  # Preserve user
+                rider=instance.rider,  
+                user=instance.user  
             )
         elif user.is_superuser:
-            # Superuser can change all fields
             serializer.save()
         else:
-            # If user is not permitted to update this order, deny access
             return Response(
                 {'detail': 'You do not have permission to update this order.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -119,8 +113,6 @@ def complete_order(request, order_id):
         return Response({"error": "Only admin and rider users can complete orders."}, status=status.HTTP_403_FORBIDDEN)
     try:
         order = ManualOrder.objects.get(id=order_id)
-
-        # Convert order values to Decimal to avoid float issues
         ride_charges = Decimal(order.ride_charges)
         paid_amount = Decimal(order.paid_amount)
         total_price = Decimal(order.total_price)
@@ -144,20 +136,20 @@ def complete_order(request, order_id):
                 return Response({"error": "Insufficient funds in customer's wallet to cover the deficit."},
                                 status=status.HTTP_400_BAD_REQUEST)
 
-        # Distribution Logic
+        
         company_share_percentage = Decimal('0.07')
         company_share = order.ride_charges * company_share_percentage
         rider_share = order.ride_charges - company_share
 
-        # Ensure Company Wallet exists or create it
+        
         company_wallet, created = CompanyWallet.objects.get_or_create(id=1)
         company_wallet.add_funds(company_share)
 
-        # Update the rider's wallet or create if not available
+        
         rider_wallet, _ = RiderWallet.objects.get_or_create(rider=order.rider)
         rider_wallet.add_funds(rider_share)
 
-        # Mark the order as completed (delivered)
+        
         order.status = 'delivered'
         order.save()
 
@@ -169,40 +161,119 @@ def complete_order(request, order_id):
 
 
 class CreateManualOrder(APIView):
-    """
-    API view to create a manual order. 
-    Only authenticated customers can create an order for themselves.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        # Ensure that the logged-in user is allowed to create the order
         if not request.user.is_authenticated:
             raise ValidationError(
                 "Authentication is required to create an order.")
 
-        # Add the logged-in user to the data for the serializer
         request_data = request.data
         request_data['user'] = request.user.id
 
-        # Serialize the data using ManualOrderSerializer
+        try:
+            valid_customer = Customer.objects.get(user=request.user)
+        except Customer.DoesNotExist:
+            raise NotFound("Customer matching query does not exist.")
+
+        
+        customer_lat = valid_customer.address_latitude
+        customer_lon = valid_customer.address_longitude
+        customer_address = valid_customer.address
+
+        if not customer_lat or not customer_lon or not customer_address:
+            
+            location_response = GetCustomerLocationView().get(request)
+            if location_response.status_code == 200:
+                location_data = location_response.data
+                customer_lat = location_data.get('latitude')
+                customer_lon = location_data.get('longitude')
+                customer_address = location_data.get(
+                    'address', 'Unknown Address')
+
+                
+                valid_customer.address_latitude = customer_lat
+                valid_customer.address_longitude = customer_lon
+                valid_customer.address = customer_address
+                valid_customer.save()
+            else:
+                raise ValidationError(
+                    "Customer must have a valid address with latitude and longitude. "
+                    "Please update your location details."
+                )
+
+        
+        if not customer_lat or not customer_lon or not customer_address:
+            raise ValidationError(
+                "Customer must have a valid address with latitude, longitude, and address. "
+                "Please update your location details."
+            )
+
+        
+        request_data['address'] = customer_address
+
+        
+        nearest_rider = None
+        min_distance = float('inf')
+
+        
+        riders = Rider.objects.filter(
+            latitude__isnull=False, longitude__isnull=False)
+        customer_coordinates = (float(customer_lat), float(customer_lon))
+
+        for rider in riders:
+            rider_coordinates = (float(rider.latitude), float(rider.longitude))
+            distance = calculate_distance(
+                *customer_coordinates, *rider_coordinates)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_rider = rider
+
+        if not nearest_rider:
+            raise NotFound("No available riders.")
+
+        
+        request_data['rider'] = nearest_rider.id
+
+        
         serializer = ManualOrderSerializer(
             data=request_data, context={'request': request})
 
         if serializer.is_valid():
-            # Save the order to the database
-            manual_order = serializer.save()
+            manual_order = serializer.save(
+                customer=valid_customer, rider=nearest_rider)
+
             return Response(
                 {"message": "Order created successfully.", "order": serializer.data},
-                status=status.HTTP_201_CREATED,
+                status=200,
             )
 
-        # If the data is not valid, return errors
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=400)
+
+    def get_address_from_coordinates(self, latitude, longitude):
+        """Fetch address from latitude and longitude using LocationIQ API."""
+        try:
+            api_url = "https://us1.locationiq.com/v1/reverse.php"
+            api_key = "pk.8dcc4459a73a29fa7b1d8c7f011d1d7f"
+            params = {
+                "key": api_key,
+                "lat": latitude,
+                "lon": longitude,
+                "format": "json",
+            }
+
+            response = requests.get(api_url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("display_name", "Unknown Address")
+            return "Unknown Address"
+        except Exception as e:
+            print(f"Error: {e}")
+            return "Error fetching address"
 
 
 class AdminOrderListView(APIView):
-    permission_classes = [IsSuperUser]  # Only admin can view
+    permission_classes = [IsSuperUser]  
 
     def get(self, request):
         orders = ManualOrder.objects.all()
@@ -217,12 +288,8 @@ class RiderOrderListView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         try:
-            # Get the Rider instance for the current user
             rider = Rider.objects.get(user=user)
             print(rider)
         except Rider.DoesNotExist:
-            # Return an empty queryset if the user is not a rider
             return ManualOrder.objects.all()
-
-        # Filter orders assigned to this rider
         return ManualOrder.objects.all()

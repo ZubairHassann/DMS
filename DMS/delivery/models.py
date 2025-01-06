@@ -7,7 +7,6 @@ from decimal import Decimal
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 from geopy.distance import geodesic
-from django.contrib.auth import get_user_model
 
 
 class CustomUserManager(BaseUserManager):
@@ -35,12 +34,12 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     groups = models.ManyToManyField(
         'auth.Group',
-        related_name='customuser_groups',  # Change related_name
+        related_name='customuser_groups',  
         blank=True
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
-        related_name='customuser_permissions',  # Change related_name
+        related_name='customuser_permissions',  
         blank=True
     )
     email = models.EmailField(unique=True)
@@ -85,9 +84,9 @@ class Rider(models.Model):
     contact_number = models.CharField(max_length=15)
     address = models.TextField()
     latitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude
+        max_digits=9, decimal_places=6, null=True, blank=True)  
     longitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True)  # Longitude
+        max_digits=9, decimal_places=6, null=True, blank=True)  
     is_available = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -102,7 +101,7 @@ class Rider(models.Model):
 
 class Customer(models.Model):
     user = models.OneToOneField(
-        get_user_model(),
+        CustomUser,
         on_delete=models.CASCADE,
         related_name='customer_profile'
     )
@@ -121,13 +120,11 @@ class Customer(models.Model):
         return f"{self.user.first_name} {self.user.last_name} - Customer"
 
     def save(self, *args, **kwargs):
-        # Ensure is_staff is set to True when the customer is created
         if not self.user.is_staff:
             self.user.is_staff = True
         super().save(*args, **kwargs)
 
     def get_full_address(self):
-        # Example of combining address fields
         return f"{self.address}, Lat: {self.address_latitude}, Lon: {self.address_longitude}"
 
     @property
@@ -217,14 +214,14 @@ class ManualOrder(models.Model):
     )
 
     customer = models.ForeignKey(
-        'Customer',
+        Customer,
         on_delete=models.CASCADE,
         related_name='manual_orders',
         null=True,
         blank=True
     )
     rider = models.ForeignKey(
-        'Rider',
+        Rider,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -287,34 +284,36 @@ class ManualOrder(models.Model):
 def detect_customer_location(customer):
     """Detect customer location if available."""
     if not customer or not hasattr(customer, 'address_latitude'):
-        return None, None  # Handle cases where customer or location data is missing
+        return None, None 
     return customer.address_latitude, customer.address_longitude
 
 
 def assign_rider_to_order(order):
     """Assign the nearest rider to an order."""
-    riders = settings.AUTH_USER_MODEL.objects.filter(is_staff=True)
-    rider_locations = []
-    for rider in riders:
-        rider_location = get_rider_location(rider)
-        if rider_location:
-            rider_locations.append((rider, rider_location))
+    riders = Rider.objects.filter(is_available=True).exclude(
+        latitude=None, longitude=None)
     nearest_rider = None
     shortest_distance = float('inf')
-    for rider, location in rider_locations:
-        distance = calculate_distance(
-            order.delivery_latitude, order.delivery_longitude, location[0], location[1])
-        if distance < shortest_distance:
-            shortest_distance = distance
-            nearest_rider = rider
+    for rider in riders:
+        if rider.latitude and rider.longitude:
+            distance = calculate_distance(
+                order.delivery_latitude, order.delivery_longitude,
+                rider.latitude, rider.longitude, order.delivery_longitude,
+                float(rider.latitude), float(rider.longitude)
+            )
+            if distance < shortest_distance:
+                shortest_distance = distance
+                nearest_rider = rider
+                nearest_rider = rider
     if nearest_rider:
         order.rider = nearest_rider
         order.save()
+        nearest_rider.is_available = False
+        nearest_rider.save()
 
 
 def get_rider_location(rider):
-    """Get the location of the rider."""
-    return rider.profile.latitude, rider.profile.longitude
+    return (float(rider.latitude), float(rider.longitude)) if rider.latitude and rider.longitude else None
 
 
 def calculate_distance(lat1, lon1, lat2, lon2):

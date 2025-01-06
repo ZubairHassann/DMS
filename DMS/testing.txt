@@ -1,82 +1,826 @@
-this is my file tree
-├── .gitignore
-├── auth
-│   ├── auth_serializers.py
-│   ├── auth_urls.py
-│   ├── auth_views.py
-│   └── __pycache__
-│       ├── auth_serializers.cpython-313.pyc
-│       ├── auth_urls.cpython-313.pyc
-│       └── auth_views.cpython-313.pyc
-├── db.sqlite3
-├── delivery
-│   ├── admin.py
-│   ├── apps.py
-│   ├── migrations
-│   │   ├── 0001_initial.py
-│   │   ├── 0002_remove_manualorder_user_manualorder_customer.py
-│   │   ├── 0003_customer_address_latitude_customer_address_longitude.py
-│   │   ├── 0004_customuser_is_rider.py
-│   │   ├── 0005_rename_address_latitude_customer_latitude_and_more.py
-│   │   ├── 0006_remove_customer_contact_number_and_more.py
-│   │   ├── 0007_alter_manualorder_customer.py
-│   │   ├── 0008_alter_manualorder_rider.py
-│   │   ├── 0009_alter_manualorder_rider.py
-│   │   ├── __init__.py
-│   │   └── __pycache__
-│   │       ├── 0001_initial.cpython-313.pyc
-│   │       ├── 0002_remove_manualorder_user_manualorder_customer.cpython-313.pyc
-│   │       ├── 0003_customer_address_latitude_customer_address_longitude.cpython-313.pyc
-│   │       ├── 0004_customuser_is_rider.cpython-313.pyc
-│   │       ├── 0005_rename_address_latitude_customer_latitude_and_more.cpython-313.pyc
-│   │       ├── 0006_remove_customer_contact_number_and_more.cpython-313.pyc
-│   │       ├── 0007_alter_manualorder_customer.cpython-313.pyc
-│   │       ├── 0008_alter_manualorder_rider.cpython-313.pyc
-│   │       ├── 0009_alter_manualorder_rider.cpython-313.pyc
-│   │       └── __init__.cpython-313.pyc
-│   ├── models.py
-│   ├── permissions.py
-│   ├── serializers.py
-│   ├── swagger.py
-│   ├── tests.py
-│   ├── urls.py
-│   ├── views.py
-│   ├── __init__.py
-│   └── __pycache__
-│       ├── admin.cpython-313.pyc
-│       ├── apps.cpython-313.pyc
-│       ├── models.cpython-313.pyc
-│       ├── permissions.cpython-313.pyc
-│       ├── serializers.cpython-313.pyc
-│       ├── urls.cpython-313.pyc
-│       ├── views.cpython-313.pyc
-│       └── __init__.cpython-313.pyc
-├── DMS
-│   ├── asgi.py
-│   ├── settings.py
-│   ├── urls.py
-│   ├── wsgi.py
-│   ├── __init__.py
-│   └── __pycache__
-│       ├── settings.cpython-313.pyc
-│       ├── urls.cpython-313.pyc
-│       ├── wsgi.cpython-313.pyc
-│       └── __init__.cpython-313.pyc
-├── Librarybingdal301.dll
-├── manage.py
-├── Orders
-│   ├── order_serializers.py
-│   ├── order_urls.py
-│   ├── order_views.py
-│   └── __pycache__
-│       ├── order_serializers.cpython-313.pyc
-│       ├── order_urls.cpython-313.pyc
-│       └── order_views.cpython-313.pyc
-├── requirements.txt
-└── testing.txt
+#Serializers
+
+from rest_framework import serializers
+from django.contrib.auth import authenticate
+from .models import (
+    CustomUser,
+    Rider,
+    Customer,
+    CustomerWallet,
+    RiderWallet,
+    CompanyWallet,
+)
 
 
-#Order_serializer.py
+class CustomUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "is_owner",
+            "is_active",
+            "is_staff",
+        ]
+        read_only_fields = ["is_active", "is_staff", "is_owner"]
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = authenticate(
+            request=self.context.get("request"),
+            email=data["email"],
+            password=data["password"],
+        )
+
+        if user and user.is_active:
+            return user
+        raise serializers.ValidationError("Invalid credentials")
+
+
+class RiderSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = Rider
+        fields = [
+            "id",
+            "user",
+            "vehicle_type",
+            "license_number",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class CustomerSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = Customer
+        fields = [
+            "id",
+            "user",
+            "address",
+            "phone_number",
+        ]
+
+
+class RiderSignupSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(write_only=True)
+    first_name = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(write_only=True)
+    password = serializers.CharField(
+        write_only=True, style={"input_type": "password"})
+
+    class Meta:
+        model = Rider
+        fields = [
+            "email",
+            "first_name",
+            "last_name",
+            "password",
+            "vehicle_type",
+            "license_number",
+            "contact_number",
+            "address",
+        ]
+
+    def create(self, validated_data):
+        email = validated_data.pop("email")
+        first_name = validated_data.pop("first_name")
+        last_name = validated_data.pop("last_name")
+        password = validated_data.pop("password")
+        user = CustomUser.objects.create(
+            email=email, first_name=first_name, last_name=last_name,
+            is_rider=True,
+            # is_staff=True,
+            is_owner=validated_data.get("is_owner", False),
+        )
+        user.set_password(password)
+        user.save()
+        rider = Rider.objects.create(user=user, **validated_data)
+
+        rider_wallet = RiderWallet.objects.create(rider=rider)
+
+        rider_wallet.add_funds(0)
+
+        return rider
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ["email", "first_name", "last_name", "password"]
+        extra_kwargs = {"password": {"write_only": True}}
+
+
+class CustomerSignupSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(write_only=True)
+    first_name = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(write_only=True)
+    password = serializers.CharField(
+        write_only=True, style={"input_type": "password"})
+    address = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = Customer
+        fields = [
+            "email",
+            "first_name",
+            "last_name",
+            "password",
+            "address",
+            "phone_number",
+        ]
+
+    def create(self, validated_data):
+        email = validated_data.pop("email")
+        first_name = validated_data.pop("first_name")
+        last_name = validated_data.pop("last_name")
+        password = validated_data.pop("password")
+        user = CustomUser.objects.create_user(
+            email=email, first_name=first_name, last_name=last_name, password=password
+        )
+        user.set_password(password)
+        user.is_staff = True
+        user.save()
+
+        customer = Customer.objects.create(user=user, **validated_data)
+        return customer
+
+
+class RiderWalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiderWallet
+        fields = ["rider", "balance"]
+
+
+class CustomerWalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomerWallet
+        fields = ["balance"]
+
+
+class CompanyWalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyWallet
+        fields = ["balance"]
+
+
+class RiderSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = Rider
+        fields = [
+            "id",
+            "user",
+            "vehicle_type",
+            "license_number",
+            "contact_number",
+            "address",
+            "is_available",
+            "created_at",
+            "updated_at",
+        ]
+#views.py 
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from .permissions import *
+from rest_framework.authtoken.models import Token
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from rest_framework import status, viewsets
+from .serializers import LoginSerializer, RiderSerializer, CustomerSerializer, CustomerWalletSerializer, RiderWalletSerializer, CompanyWalletSerializer
+from .models import CustomUser, Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet,Customer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from .serializers import RiderSerializer
+import requests
+from django.http import JsonResponse
+
+# class AdminRegisterRiderView(viewsets.ModelViewSet):
+#     queryset = CustomUser.objects.all()
+#     permission_classes = [permissions.IsAuthenticated]
+#     # authentication_classes = [TokenAuthentication, SessionAuthentication]
+
+#     def post(self, request):
+#         serializer = RiderRegistrationSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({"message": "Rider account created successfully."}, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#     def create(self, request):
+#         serializer = RiderRegistrationSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({"message": "User account created successfully."}, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# class CustomerRegisterViewSet(viewsets.ModelViewSet):
+#     queryset = CustomUser.objects.all()
+#     serializer_class = CustomerRegistrationSerializer
+
+#     def create(self, request):
+#         serializer = CustomerRegistrationSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({"message": "User account created successfully."}, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# def update(self, request, pk):
+#     user = self.get_object()
+#     serializer = CustomerRegistrationSerializer(user, data=request.data)
+#     if serializer.is_valid():
+#         serializer.save()
+#         return Response({"message": "User account updated successfully."}, status=status.HTTP_200_OK)
+#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class GetRiderLocationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            print(f"Logged-in user: {request.user}")
+            rider = request.user.rider
+            data = {
+                "latitude": rider.latitude,
+                "longitude": rider.longitude,
+                "address": rider.address,
+            }
+            return Response(data)
+        except AttributeError:
+            print("Rider object not found for the logged-in user.")
+            return Response({"error": "Rider details not found for the logged-in user."}, status=404)
+
+    def post(self, request):
+        """Update the location of the logged-in rider."""
+        try:
+            rider = request.user.rider
+            latitude = request.data.get('latitude')
+            longitude = request.data.get('longitude')
+
+            if latitude is None or longitude is None:
+                return Response(
+                    {"error": "Latitude and longitude are required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            address = self.get_address_from_coordinates(latitude, longitude)
+            rider.latitude = latitude
+            rider.longitude = longitude
+            rider.address = address
+            rider.save()
+
+            return Response(
+                {"success": "Location updated successfully."},
+                status=status.HTTP_200_OK
+            )
+        except AttributeError:
+            return Response({"error": "Rider details not found for the logged-in user."}, status=status.HTTP_404_NOT_FOUND)
+
+    def get_address_from_coordinates(self, latitude, longitude):
+        """Fetch address from latitude and longitude using LocationIQ API."""
+        try:
+            api_url = "https://us1.locationiq.com/v1/reverse.php"
+            api_key = "pk.8dcc4459a73a29fa7b1d8c7f011d1d7f"
+            params = {
+                "key": api_key,
+                "lat": latitude,
+                "lon": longitude,
+                "format": "json",
+            }
+            response = requests.get(api_url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("display_name", "Address not found")
+            return "Address not found"
+        except Exception as e:
+            print(f"Error: {e}")
+            return "Error fetching address"
+
+# Example usage in a Django view for Rider location
+
+
+def get_rider_location(request):
+    latitude = 24.8607
+    longitude = 67.0011
+    if latitude and longitude:
+        address = GetRiderLocationView().get_address_from_coordinates(latitude, longitude)
+        return JsonResponse({"address": address})
+    return JsonResponse({"error": "Latitude and Longitude are required"}, status=400)
+
+
+class GetCustomerLocationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get the location of the logged-in customer."""
+        try:
+            # Fetch the logged-in customer's location
+            customer = request.user.Customer
+            if not customer:
+                return Response({"error": "No customer profile found for the logged-in user."}, status=404)
+            data = {
+                "latitude": customer.address_latitude,  # Use the correct latitude field
+                "longitude": customer.address_longitude,  # Use the correct longitude field
+                "address": customer.address,
+            }
+            return Response(data)
+        except AttributeError:
+            # If customer details not found for the logged-in user
+            return Response({"error": "Customer details not found for the logged-in user."}, status=404)
+
+    def post(self, request):
+        """Update the location of the logged-in customer."""
+        try:
+            customer = request.user.customer
+            latitude = request.data.get('latitude')
+            longitude = request.data.get('longitude')
+
+            # Ensure latitude and longitude are provided
+            if latitude is None or longitude is None:
+                return Response(
+                    {"error": "Latitude and longitude are required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Get address from the latitude and longitude using the LocationIQ API
+            address = self.get_address_from_coordinates(latitude, longitude)
+
+            # Update the customer's location details
+            customer.address_latitude = latitude  # Correct field for latitude
+            customer.address_longitude = longitude  # Correct field for longitude
+            customer.address = address  # Update address field
+            customer.save()
+
+            return Response(
+                {"success": "Location updated successfully."},
+                status=status.HTTP_200_OK
+            )
+        except AttributeError:
+            # If customer details not found for the logged-in user
+            return Response({"error": "Customer details not found for the logged-in user."}, status=status.HTTP_404_NOT_FOUND)
+
+    def get_address_from_coordinates(self, latitude, longitude):
+        """Fetch address from latitude and longitude using LocationIQ API."""
+        try:
+            api_url = "https://us1.locationiq.com/v1/reverse.php"
+            # Replace with your actual API key
+            api_key = "pk.8dcc4459a73a29fa7b1d8c7f011d1d7f"
+            params = {
+                "key": api_key,
+                "lat": latitude,
+                "lon": longitude,
+                "format": "json",
+            }
+
+            # Send request to LocationIQ API
+            response = requests.get(api_url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("display_name", "Address not found")
+            return "Address not found"
+        except Exception as e:
+            print(f"Error: {e}")
+            return "Error fetching address"
+
+
+# Example view for using the LocationIQ API directly
+def get_location(request):
+    """Fetch address using latitude and longitude from the request."""
+    latitude = request.GET.get('latitude')
+    longitude = request.GET.get('longitude')
+
+    if latitude and longitude:
+        address = GetCustomerLocationView().get_address_from_coordinates(latitude, longitude)
+        return JsonResponse({"address": address})
+    return JsonResponse({"error": "Latitude and Longitude are required"}, status=400)
+
+
+class LoginViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    serializer_class = LoginSerializer
+
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            token, created = Token.objects.update_or_create(user=user)
+
+            return Response({
+                'access': access_token,
+                'refresh': str(refresh),
+                'token': token.key
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RiderViewSet(viewsets.ModelViewSet):
+    queryset = Rider.objects.all()
+    serializer_class = RiderSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class CustomerViewSet(viewsets.ModelViewSet):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class RiderWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def get(self, request):
+        try:
+            rider = Rider.objects.get(user=request.user)
+            wallet = RiderWallet.objects.get(rider=rider)
+            serializer = RiderWalletSerializer(wallet)
+            return Response(serializer.data)
+        except Rider.DoesNotExist:
+            return Response({"message": "Rider profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        except RiderWallet.DoesNotExist:
+            return Response({"message": "Rider wallet not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class CustomerWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def get(self, request):
+        try:
+            customer = Customer.objects.get(user=request.user)
+            wallet = CustomerWallet.objects.get(customer=customer)
+            serializer = CustomerWalletSerializer(wallet)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response({"message": "Customer profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        except CustomerWallet.DoesNotExist:
+            return Response({"message": "Customer wallet not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class CompanyWalletView(APIView):
+    permission_classes = [IsSuperUser]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def get(self, request):
+        wallet = CompanyWallet.objects.first()
+        serializer = CompanyWalletSerializer(wallet)
+        return Response(serializer.data)
+#models.py
+from django.db import models
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.conf import settings
+from datetime import timedelta
+from django.utils.timezone import now
+from decimal import Decimal
+from django.dispatch import receiver
+from django.db.models.signals import post_save
+from geopy.distance import geodesic
+from django.contrib.auth import get_user_model
+
+
+class CustomUserManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError('A valid email address must be provided')
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self.create_user(email, password, **extra_fields)
+
+
+class CustomUser(AbstractBaseUser, PermissionsMixin):
+    groups = models.ManyToManyField(
+        'auth.Group',
+        related_name='customuser_groups',  # Change related_name
+        blank=True
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        related_name='customuser_permissions',  # Change related_name
+        blank=True
+    )
+    email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30)
+    is_owner = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    is_rider = models.BooleanField(default=False)
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['first_name', 'last_name']
+
+    objects = CustomUserManager()
+
+    class Meta:
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
+
+    def update_email(self, new_email):
+        if CustomUser.objects.filter(email=new_email).exclude(id=self.id).exists():
+            raise ValueError('This email is already in use.')
+        self.email = new_email
+        self.save(update_fields=['email'])
+
+
+class Rider(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    vehicle_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('bike', 'Bike'),
+            ('car', 'Car'),
+        ],
+        default='bike'
+    )
+    license_number = models.CharField(max_length=20, unique=True)
+    contact_number = models.CharField(max_length=15)
+    address = models.TextField()
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True)  # Longitude
+    is_available = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.first_name} {self.user.last_name} - {self.vehicle_type}"
+
+    class Meta:
+        verbose_name = 'Rider'
+        verbose_name_plural = 'Riders'
+
+
+class Customer(models.Model):
+    user = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='customer_profile'
+    )
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    address_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    address_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.first_name} {self.user.last_name} - Customer"
+
+    def save(self, *args, **kwargs):
+        # Ensure is_staff is set to True when the customer is created
+        if not self.user.is_staff:
+            self.user.is_staff = True
+        super().save(*args, **kwargs)
+
+    def get_full_address(self):
+        # Example of combining address fields
+        return f"{self.address}, Lat: {self.address_latitude}, Lon: {self.address_longitude}"
+
+    @property
+    def full_name(self):
+        return f"{self.user.first_name} {self.user.last_name}"
+
+    def has_valid_address(self):
+        """Check if customer has a valid address."""
+        return bool(self.address and self.address_latitude and self.address_longitude)
+
+    def update_location(self, latitude, longitude):
+        """Update address location information."""
+        self.address_latitude = latitude
+        self.address_longitude = longitude
+        self.save()
+
+
+@receiver(post_save, sender=Customer)
+def create_customer_wallet(sender, instance, created, **kwargs):
+    if created:
+        CustomerWallet.objects.create(customer=instance)
+
+
+class RiderWallet(models.Model):
+    rider = models.OneToOneField(
+        Rider, on_delete=models.CASCADE, related_name='rider_wallet')
+    balance = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'))
+
+    def add_funds(self, amount):
+        amount = Decimal(amount)
+        self.balance += amount
+        self.save()
+
+
+class CustomerWallet(models.Model):
+    customer = models.OneToOneField(
+        Customer, on_delete=models.CASCADE, related_name='customer_wallet')
+    balance = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00)
+
+    def add_funds(self, amount):
+        amount = Decimal(amount)
+        self.balance += amount
+        self.save()
+
+    def deduct_funds(self, amount):
+        amount = Decimal(amount)
+        self.balance -= amount
+        self.save()
+
+
+class Order(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('shipped', 'Shipped'),
+        ('delivered', 'Delivered'),
+    )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    mobile_number = models.CharField(max_length=15, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Order {self.id} by {self.user.username}'
+
+
+class ManualOrder(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('shipped', 'Shipped'),
+        ('delivered', 'Delivered'),
+    )
+
+    UNIT_CHOICES = (
+        ('kg', 'KG'),
+        ('liter', 'Liter'),
+        ('piece', 'Piece'),
+    )
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='manual_orders',
+        null=True,
+        blank=True
+    )
+    rider = models.ForeignKey(
+        Rider,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_orders'
+    )
+    name = models.CharField(max_length=255, blank=True, null=True)
+    mobile_number = models.CharField(max_length=15, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    product_name = models.CharField(max_length=255, blank=True, null=True)
+    product_image = models.ImageField(
+        upload_to='manual_orders/', blank=True, null=True
+    )
+    quantity = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True
+    )
+    unit = models.CharField(
+        max_length=10, choices=UNIT_CHOICES, default='piece'
+    )
+    order_details = models.TextField(blank=True, null=True)
+    total_price = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
+    )
+    ride_charges = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
+    )
+    paid_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending'
+    )
+    invoice = models.ImageField(upload_to='invoices/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    delivery_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    delivery_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+
+    def __str__(self):
+        customer_first_name = getattr(self.customer, 'user.first_name', None)
+        return f'Manual Order {self.id} by {customer_first_name or "Unknown"}'
+
+    def is_time_expired(self):
+        """Check if 20 minutes have passed since the order was placed."""
+        time_elapsed = now() - self.created_at
+        return time_elapsed >= timedelta(minutes=20)
+
+    def save(self, *args, **kwargs):
+        if self.customer and (not self.delivery_latitude or not self.delivery_longitude):
+            self.delivery_latitude, self.delivery_longitude = detect_customer_location(
+                self.customer)
+        super().save(*args, **kwargs)
+        if self.delivery_latitude and self.delivery_longitude and not self.rider:
+            assign_rider_to_order(self)
+
+
+def detect_customer_location(customer):
+    """Detect customer location if available."""
+    if not customer or not hasattr(customer, 'address_latitude'):
+        return None, None  # Handle cases where customer or location data is missing
+    return customer.address_latitude, customer.address_longitude
+
+
+def assign_rider_to_order(order):
+    """Assign the nearest rider to an order."""
+    riders = Rider.objects.filter(is_available=True).exclude(
+        latitude=None, longitude=None)
+    nearest_rider = None
+    shortest_distance = float('inf')
+    for rider in riders:
+        if rider.latitude and rider.longitude:
+            distance = calculate_distance(
+                order.delivery_latitude, order.delivery_longitude,
+                rider.latitude, rider.longitude, order.delivery_longitude,
+                float(rider.latitude), float(rider.longitude)
+            )
+            if distance < shortest_distance:
+                shortest_distance = distance
+                nearest_rider = rider
+                nearest_rider = rider
+    if nearest_rider:
+        order.rider = nearest_rider
+        order.save()
+        nearest_rider.is_available = False
+        nearest_rider.save()
+
+
+def get_rider_location(rider):
+    return (float(rider.latitude), float(rider.longitude)) if rider.latitude and rider.longitude else None
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate the distance between two geographic coordinates."""
+    return geodesic((lat1, lon1), (lat2, lon2)).kilometers
+
+
+class CompanyWallet(models.Model):
+    balance = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00)
+
+    def add_funds(self, amount):
+        amount = Decimal(amount)
+        self.balance += amount
+        self.save()
+#order_serializers
 from rest_framework import serializers
 from delivery.models import ManualOrder, CustomUser
 from django.utils import timezone
@@ -84,6 +828,7 @@ from datetime import timedelta
 
 
 class ManualOrderSerializer(serializers.ModelSerializer):
+    customer_name = serializers.SerializerMethodField()
     product_image = serializers.ImageField(required=False, allow_null=True)
     invoice = serializers.ImageField(required=False, allow_null=True)
     time_remaining = serializers.SerializerMethodField()
@@ -92,12 +837,22 @@ class ManualOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = ManualOrder
         fields = [
-            'id', 'customer', 'name', 'mobile_number', 'address', 'product_name',
+            'id', 'customer', 'customer_name', 'name', 'mobile_number', 'address', 'product_name',
             'product_image', 'quantity', 'unit', 'order_details', 'total_price',
             'ride_charges', 'paid_amount', 'status', 'rider', 'invoice', 'created_at',
             'updated_at', 'time_remaining', 'customer_mobile'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'user', 'rider']
+    def create(self, validated_data):
+        # Ensure that the customer is being passed correctly and associated with the order
+        customer = validated_data.pop('customer')  # You can also set a default if needed
+        order = ManualOrder.objects.create(customer=customer, **validated_data)
+        return order
+    def get_customer_name(self, obj):
+        """Retrieve the customer's full name."""
+        if obj.customer and obj.customer.user:
+            return f"{obj.customer.user.first_name} {obj.customer.user.last_name}"
+        return None
 
     def get_time_remaining(self, obj):
         elapsed_time = timezone.now() - obj.created_at
@@ -113,7 +868,7 @@ class ManualOrderSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user.is_staff:
             return obj.mobile_number
-        elif request and request.user == obj.user:
+        elif request and request.user == obj.customer:
             return obj.mobile_number
         return None
 
@@ -134,8 +889,8 @@ class ManualOrderSerializer(serializers.ModelSerializer):
             self.fields.pop('mobile_number')
 
     def validate(self, data):
-        if not data.get('name') or not data.get('address'):
-            raise serializers.ValidationError("Name and address are required.")
+        if not data.get('address'):
+            raise serializers.ValidationError("address is required.")
         if not data.get('product_name'):
             raise serializers.ValidationError("Product name is required.")
         if 'quantity' in data and data.get('quantity') <= 0:
@@ -166,7 +921,7 @@ from delivery.permissions import IsSuperUser, IsRider
 from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework.generics import ListAPIView
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 
 
 class ManualOrderViewSet(viewsets.ModelViewSet):
@@ -322,38 +1077,92 @@ def complete_order(request, order_id):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+# class CreateManualOrder(APIView):
+#     """
+#     API view to create a manual order.
+#     Only authenticated customers can create an order for themselves.
+#     """
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request, *args, **kwargs):
+#         # Ensure that the logged-in user is allowed to create the order
+#         if not request.user.is_authenticated:
+#             raise ValidationError(
+#                 "Authentication is required to create an order.")
+
+#         # Add the logged-in user to the data for the serializer
+#         request_data = request.data
+#         request_data['user'] = request.user.id
+
+#         # Serialize the data using ManualOrderSerializer
+#         serializer = ManualOrderSerializer(
+#             data=request_data, context={'request': request})
+
+#         if serializer.is_valid():
+#             validCustomer = Customer.objects.get(pk=request.user.id)
+#             # Save the order to the database
+#             manual_order = serializer.save(customer=validCustomer)
+#             return Response(
+#                 {"message": "Order created successfully.", "order": serializer.data},
+#                 status=status.HTTP_201_CREATED,
+#             )
+
+#         # If the data is not valid, return errors
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class CreateManualOrder(APIView):
-    """
-    API view to create a manual order. 
-    Only authenticated customers can create an order for themselves.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        # Ensure that the logged-in user is allowed to create the order
         if not request.user.is_authenticated:
-            raise ValidationError(
-                "Authentication is required to create an order.")
+            raise ValidationError("Authentication is required to create an order.")
 
-        # Add the logged-in user to the data for the serializer
-        request_data = request.data.copy()
+        request_data = request.data
         request_data['user'] = request.user.id
 
+        try:
+            validCustomer = Customer.objects.get(user=request.user)
+        except Customer.DoesNotExist:
+            raise NotFound("Customer matching query does not exist.")
+
+        # Get the customer's latitude and longitude
+        customer_lat = validCustomer.address_latitude
+        customer_lon = validCustomer.address_longitude
+
+        # Check if the customer has valid location data
+        if not customer_lat or not customer_lon:
+            raise ValidationError("Customer must have a valid address with latitude and longitude.")
+
+        # Find the nearest rider
+        nearest_rider = None
+        min_distance = float('inf')  # Start with a very large number
+
+        riders = Rider.objects.all()  # Get all riders (you can filter based on availability if needed)
+        for rider in riders:
+            if rider.latitude and rider.longitude:
+                distance = calculate_distance(customer_lat, customer_lon, rider.latitude, rider.longitude)
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_rider = rider
+
+        if not nearest_rider:
+            raise NotFound("No available riders.")
+
+        # Add the nearest rider to the request data
+        request_data['rider'] = nearest_rider.id  # Assign the nearest rider's ID
+
         # Serialize the data using ManualOrderSerializer
-        serializer = ManualOrderSerializer(
-            data=request_data, context={'request': request})
+        serializer = ManualOrderSerializer(data=request_data, context={'request': request})
 
         if serializer.is_valid():
-            # Save the order to the database
-            manual_order = serializer.save()
+            manual_order = serializer.save(customer=validCustomer, rider=nearest_rider)
+
             return Response(
                 {"message": "Order created successfully.", "order": serializer.data},
                 status=status.HTTP_201_CREATED,
             )
 
-        # If the data is not valid, return errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class AdminOrderListView(APIView):
     permission_classes = [IsSuperUser]  # Only admin can view
@@ -366,540 +1175,197 @@ class AdminOrderListView(APIView):
 
 class RiderOrderListView(ListAPIView):
     serializer_class = ManualOrderSerializer
-    permission_classes = [IsAuthenticated, IsRider]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
         try:
             # Get the Rider instance for the current user
             rider = Rider.objects.get(user=user)
+            print(rider)
         except Rider.DoesNotExist:
             # Return an empty queryset if the user is not a rider
-            return ManualOrder.objects.none()
+            return ManualOrder.objects.all()
 
-        # Return orders assigned to this rider (no need for is_staff check)
-        return ManualOrder.objects.filter(rider=rider)
-#Serializers.py
-from rest_framework import serializers
-from django.contrib.auth import authenticate
-from .models import (
-    CustomUser,
-    Rider,
-    Customer,
-    CustomerWallet,
-    RiderWallet,
-    CompanyWallet,
+        # Filter orders assigned to this rider
+        return ManualOrder.objects.all()
+#Order_urls.py
+from rest_framework import routers
+from .order_views import *
+from django.urls import include, path
+router = routers.DefaultRouter()
+router.register(r'Manual-Order', ManualOrderViewSet, basename='Manual-Order'),
+urlpatterns = [
+    path('', include(router.urls)),
+    path("ManualOrderCreate", CreateManualOrder.as_view(), name='ManualOrderCreate'
+         ),
+    path("OrderListView", AdminOrderListView.as_view(), name='OrderListView'),
+    path("RiderOrderListView", RiderOrderListView.as_view(),
+         name='RiderOrderListView')
+]
+#auth_views.py
+from rest_framework import status, generics
+from delivery.serializers import (
+    RiderSignupSerializer,
+    CustomerSignupSerializer,
+    CustomerWalletSerializer,
 )
+from delivery.models import CustomerWallet
+from .auth_serializers import (
+    ResetPasswordSerializer,
+    ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+)
+from rest_framework.response import Response
+from delivery.models import Customer, RiderWallet
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.http import urlsafe_base64_encode
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.contrib.auth import get_user_model, authenticate
+from delivery.permissions import IsSuperUser
+
+User = get_user_model()
 
 
-class CustomUserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = [
-            "id",
-            "email",
-            "first_name",
-            "last_name",
-            "is_owner",
-            "is_active",
-            "is_staff",
-        ]
-        read_only_fields = ["is_active", "is_staff", "is_owner"]
+class RiderSignupView(APIView):
+    permission_classes = [IsSuperUser]
+
+    def post(self, request):
+        serializer = RiderSignupSerializer(data=request.data)
+        if serializer.is_valid():
+            rider = serializer.save()
+
+            if hasattr(rider, "rider_wallet"):
+                wallet_status = "Wallet created successfully."
+            else:
+                wallet_status = "Failed to create wallet."
+
+            return Response(
+                {
+                    "message": "Rider account created successfully",
+                    "rider_id": rider.id,
+                    "wallet_status": wallet_status,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class CustomerSignupView(generics.CreateAPIView):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSignupSerializer
+
+    def post(self, request):
+        serializer = CustomerSignupSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"message": "Customer account created successfully"},
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+class CustomerWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
 
-    def validate(self, data):
-        user = authenticate(
-            request=self.context.get("request"),
-            email=data["email"],
-            password=data["password"],
+    def get(self, request):
+        try:
+            # Get the customer instance related to the authenticated user
+            customer = Customer.objects.get(user=request.user)
+            # Get the wallet for the customer
+            wallet = CustomerWallet.objects.get(customer=customer)
+            serializer = CustomerWalletSerializer(wallet)
+            return Response(serializer.data)
+        except Customer.DoesNotExist:
+            return Response(
+                {"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except CustomerWallet.DoesNotExist:
+            return Response(
+                {"error": "Wallet not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response(
+                    {"detail": "Refresh token is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"detail": "Invalid token or logout failed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChangePasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(
+            data=request.data, context={"request": request}
         )
-
-        if user and user.is_active:
-            return user
-        raise serializers.ValidationError("Invalid credentials")
-
-
-class RiderSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
-
-    class Meta:
-        model = Rider
-        fields = [
-            "id",
-            "user",
-            "vehicle_type",
-            "license_number",
-            "created_at",
-            "updated_at",
-        ]
-
-
-class CustomerSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
-
-    class Meta:
-        model = Customer
-        fields = [
-            "id",
-            "user",
-            "address",
-            "phone_number",
-        ]
-
-
-class RiderSignupSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(write_only=True)
-    first_name = serializers.CharField(write_only=True)
-    last_name = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, style={"input_type": "password"})
-
-    class Meta:
-        model = Rider
-        fields = [
-            "email",
-            "first_name",
-            "last_name",
-            "password",
-            "vehicle_type",
-            "license_number",
-            "contact_number",
-            "address",
-        ]
-
-    def create(self, validated_data):
-        email = validated_data.pop("email")
-        first_name = validated_data.pop("first_name")
-        last_name = validated_data.pop("last_name")
-        password = validated_data.pop("password")
-        user = CustomUser.objects.create(
-            email=email, first_name=first_name, last_name=last_name,
-            is_rider=True
-        )
-        user.set_password(password)
-        user.save()
-        rider = Rider.objects.create(user=user, **validated_data)
-
-        rider_wallet = RiderWallet.objects.create(rider=rider)
-
-        rider_wallet.add_funds(0)
-
-        return rider
-
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = ["email", "first_name", "last_name", "password"]
-        extra_kwargs = {"password": {"write_only": True}}
-
-
-class CustomerSignupSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(write_only=True)
-    first_name = serializers.CharField(write_only=True)
-    last_name = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, style={"input_type": "password"})
-    address = serializers.CharField(write_only=True, required=True)
-
-    class Meta:
-        model = Customer
-        fields = [
-            "email",
-            "first_name",
-            "last_name",
-            "password",
-            "address",
-            "phone_number",
-        ]
-
-    def create(self, validated_data):
-        email = validated_data.pop("email")
-        first_name = validated_data.pop("first_name")
-        last_name = validated_data.pop("last_name")
-        password = validated_data.pop("password")
-        user = CustomUser.objects.create_user(
-            email=email, first_name=first_name, last_name=last_name, password=password
-        )
-        user.set_password(password)
-        user.is_staff = True
-        user.save()
-
-        customer = Customer.objects.create(user=user, **validated_data)
-        return customer
-
-
-class RiderWalletSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RiderWallet
-        fields = ["rider", "balance"]
-
-
-class CustomerWalletSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomerWallet
-        fields = ["balance"]
-
-
-
-
-class CompanyWalletSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CompanyWallet
-        fields = ["balance"]
-
-
-class RiderSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
-
-    class Meta:
-        model = Rider
-        fields = [
-            "id",
-            "user",
-            "vehicle_type",
-            "license_number",
-            "contact_number",
-            "address",
-            "is_available",
-            "created_at",
-            "updated_at",
-        ]
-
-#models.py
-from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.conf import settings
-from datetime import timedelta
-from django.utils.timezone import now
-from decimal import Decimal
-from django.dispatch import receiver
-from django.db.models.signals import post_save
-from geopy.distance import geodesic
-from django.contrib.auth import get_user_model
-
-
-class CustomUserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError('A valid email address must be provided')
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser must have is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True.')
-
-        return self.create_user(email, password, **extra_fields)
-
-
-class CustomUser(AbstractBaseUser, PermissionsMixin):
-    groups = models.ManyToManyField(
-        'auth.Group',
-        related_name='customuser_groups',  # Change related_name
-        blank=True
-    )
-    user_permissions = models.ManyToManyField(
-        'auth.Permission',
-        related_name='customuser_permissions',  # Change related_name
-        blank=True
-    )
-    email = models.EmailField(unique=True)
-    first_name = models.CharField(max_length=30)
-    last_name = models.CharField(max_length=30)
-    is_owner = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    is_rider = models.BooleanField(default=False)
-
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name']
-
-    objects = CustomUserManager()
-
-    class Meta:
-        verbose_name = 'User'
-        verbose_name_plural = 'Users'
-
-    def __str__(self):
-        return f"{self.first_name} {self.last_name}"
-
-    def update_email(self, new_email):
-        if CustomUser.objects.filter(email=new_email).exclude(id=self.id).exists():
-            raise ValueError('This email is already in use.')
-        self.email = new_email
-        self.save(update_fields=['email'])
-
-
-class Rider(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    vehicle_type = models.CharField(
-        max_length=50,
-        choices=[
-            ('bike', 'Bike'),
-            ('car', 'Car'),
-        ],
-        default='bike'
-    )
-    license_number = models.CharField(max_length=20, unique=True)
-    contact_number = models.CharField(max_length=15)
-    address = models.TextField()
-    latitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude
-    longitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True)  # Longitude
-    is_available = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.user.first_name} {self.user.last_name} - {self.vehicle_type}"
-
-    class Meta:
-        verbose_name = 'Rider'
-        verbose_name_plural = 'Riders'
-
-
-class Customer(models.Model):
-    user = models.OneToOneField(
-        get_user_model(),
-        on_delete=models.CASCADE,
-        related_name='customer_profile'
-    )
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
-    address = models.TextField(blank=True, null=True)
-    address_latitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True
-    )
-    address_longitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True
-    )
-    created_at = models.DateTimeField(auto_now_add=True, null=True)
-    updated_at = models.DateTimeField(auto_now=True, null=True)
-
-    def __str__(self):
-        return f"{self.user.first_name} {self.user.last_name} - Customer"
-
-    def save(self, *args, **kwargs):
-        # Ensure is_staff is set to True when the customer is created
-        if not self.user.is_staff:
-            self.user.is_staff = True
-        super().save(*args, **kwargs)
-
-    def get_full_address(self):
-        # Example of combining address fields
-        return f"{self.address}, Lat: {self.address_latitude}, Lon: {self.address_longitude}"
-
-    @property
-    def full_name(self):
-        return f"{self.user.first_name} {self.user.last_name}"
-
-    def has_valid_address(self):
-        """Check if customer has a valid address."""
-        return bool(self.address and self.address_latitude and self.address_longitude)
-
-    def update_location(self, latitude, longitude):
-        """Update address location information."""
-        self.address_latitude = latitude
-        self.address_longitude = longitude
-        self.save()
-
-
-@receiver(post_save, sender=Customer)
-def create_customer_wallet(sender, instance, created, **kwargs):
-    if created:
-        CustomerWallet.objects.create(customer=instance)
-
-
-class RiderWallet(models.Model):
-    rider = models.OneToOneField(
-        Rider, on_delete=models.CASCADE, related_name='rider_wallet')
-    balance = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal('0.00'))
-
-    def add_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance += amount
-        self.save()
-
-
-class CustomerWallet(models.Model):
-    customer = models.OneToOneField(
-        Customer, on_delete=models.CASCADE, related_name='customer_wallet')
-    balance = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00)
-
-    def add_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance += amount
-        self.save()
-
-    def deduct_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance -= amount
-        self.save()
-
-
-class Order(models.Model):
-    STATUS_CHOICES = (
-        ('pending', 'Pending'),
-        ('processing', 'Processing'),
-        ('shipped', 'Shipped'),
-        ('delivered', 'Delivered'),
-    )
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255, blank=True, null=True)
-    mobile_number = models.CharField(max_length=15, blank=True, null=True)
-    address = models.TextField(blank=True, null=True)
-    total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default='pending')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f'Order {self.id} by {self.user.username}'
-
-
-class ManualOrder(models.Model):
-    STATUS_CHOICES = (
-        ('pending', 'Pending'),
-        ('processing', 'Processing'),
-        ('shipped', 'Shipped'),
-        ('delivered', 'Delivered'),
-    )
-
-    UNIT_CHOICES = (
-        ('kg', 'KG'),
-        ('liter', 'Liter'),
-        ('piece', 'Piece'),
-    )
-
-    customer = models.ForeignKey(
-        'delivery.Customer',
-        on_delete=models.CASCADE,
-        related_name='manual_orders',
-        null=True,
-        blank=True
-    )
-    rider = models.ForeignKey(
-        'delivery.Rider',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        limit_choices_to={'is_staff': True},
-        related_name='assigned_orders'
-    )
-    name = models.CharField(max_length=255, blank=True, null=True)
-    mobile_number = models.CharField(max_length=15, blank=True, null=True)
-    address = models.TextField(blank=True, null=True)
-    product_name = models.CharField(max_length=255, blank=True, null=True)
-    product_image = models.ImageField(
-        upload_to='manual_orders/', blank=True, null=True
-    )
-    quantity = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True
-    )
-    unit = models.CharField(
-        max_length=10, choices=UNIT_CHOICES, default='piece'
-    )
-    order_details = models.TextField(blank=True, null=True)
-    total_price = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
-    )
-    ride_charges = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
-    )
-    paid_amount = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True, default=0.0
-    )
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default='pending'
-    )
-    invoice = models.ImageField(upload_to='invoices/', blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    delivery_latitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True
-    )
-    delivery_longitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True
-    )
-
-    def __str__(self):
-        customer_first_name = getattr(self.customer, 'user.first_name', None)
-        return f'Manual Order {self.id} by {customer_first_name or "Unknown"}'
-
-    def is_time_expired(self):
-        """Check if 20 minutes have passed since the order was placed."""
-        time_elapsed = now() - self.created_at
-        return time_elapsed >= timedelta(minutes=20)
-
-    def save(self, *args, **kwargs):
-        if self.customer and (not self.delivery_latitude or not self.delivery_longitude):
-            self.delivery_latitude, self.delivery_longitude = detect_customer_location(
-                self.customer)
-        super().save(*args, **kwargs)
-        if self.delivery_latitude and self.delivery_longitude and not self.rider:
-            assign_rider_to_order(self)
-
-
-def detect_customer_location(customer):
-    """Detect customer location if available."""
-    if not customer or not hasattr(customer, 'address_latitude'):
-        return None, None  # Handle cases where customer or location data is missing
-    return customer.address_latitude, customer.address_longitude
-
-
-def assign_rider_to_order(order):
-    """Assign the nearest rider to an order."""
-    riders = settings.AUTH_USER_MODEL.objects.filter(is_staff=True)
-    rider_locations = []
-    for rider in riders:
-        rider_location = get_rider_location(rider)
-        if rider_location:
-            rider_locations.append((rider, rider_location))
-    nearest_rider = None
-    shortest_distance = float('inf')
-    for rider, location in rider_locations:
-        distance = calculate_distance(
-            order.delivery_latitude, order.delivery_longitude, location[0], location[1])
-        if distance < shortest_distance:
-            shortest_distance = distance
-            nearest_rider = rider
-    if nearest_rider:
-        order.rider = nearest_rider
-        order.save()
-
-
-def get_rider_location(rider):
-    """Get the location of the rider."""
-    return rider.profile.latitude, rider.profile.longitude
-
-
-def calculate_distance(lat1, lon1, lat2, lon2):
-    """Calculate the distance between two geographic coordinates."""
-    return geodesic((lat1, lon1), (lat2, lon2)).kilometers
-
-
-class CompanyWallet(models.Model):
-    balance = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00)
-
-    def add_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance += amount
-        self.save()
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"message": "Password changed successfully."}, status=status.HTTP_200_OK
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ForgotPasswordView(APIView):
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data["email"]
+            user = User.objects.get(email=email)
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            reset_link = f"https://smms-app-ec48c9-7ad1bc-65-108-245-140.traefik.me/auth/forgot-password?uid={
+                uid}&token={token}"
+
+            send_mail(
+                "Password Reset Request",
+                f"Click the link to reset your password: {reset_link}",
+                "no-reply@example.com",
+                [email],
+            )
+            return Response(
+                {"message": "Password reset link sent."}, status=status.HTTP_200_OK
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResetPasswordView(APIView):
+    serializer_class = ResetPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"message": "Password has been reset successfully."},
+                status=status.HTTP_200_OK,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

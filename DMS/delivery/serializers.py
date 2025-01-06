@@ -96,8 +96,8 @@ class RiderSignupSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password")
         user = CustomUser.objects.create(
             email=email, first_name=first_name, last_name=last_name,
-            # is_rider=True
-            is_staff=True,
+            is_rider=True,
+            # is_staff=True,
             is_owner=validated_data.get("is_owner", False),
         )
         user.set_password(password)

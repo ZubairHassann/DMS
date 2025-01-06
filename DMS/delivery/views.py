@@ -2,55 +2,17 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .permissions import *
 from rest_framework.authtoken.models import Token
-from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status, viewsets
 from .serializers import LoginSerializer, RiderSerializer, CustomerSerializer, CustomerWalletSerializer, RiderWalletSerializer, CompanyWalletSerializer
-from .models import CustomUser, Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet
+from .models import  Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet,Customer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .serializers import RiderSerializer
 import requests
 from django.http import JsonResponse
 
-# class AdminRegisterRiderView(viewsets.ModelViewSet):
-#     queryset = CustomUser.objects.all()
-#     permission_classes = [permissions.IsAuthenticated]
-#     # authentication_classes = [TokenAuthentication, SessionAuthentication]
-
-#     def post(self, request):
-#         serializer = RiderRegistrationSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({"message": "Rider account created successfully."}, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#     def create(self, request):
-#         serializer = RiderRegistrationSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({"message": "User account created successfully."}, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class CustomerRegisterViewSet(viewsets.ModelViewSet):
-#     queryset = CustomUser.objects.all()
-#     serializer_class = CustomerRegistrationSerializer
-
-#     def create(self, request):
-#         serializer = CustomerRegistrationSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({"message": "User account created successfully."}, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-# def update(self, request, pk):
-#     user = self.get_object()
-#     serializer = CustomerRegistrationSerializer(user, data=request.data)
-#     if serializer.is_valid():
-#         serializer.save()
-#         return Response({"message": "User account updated successfully."}, status=status.HTTP_200_OK)
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 class GetRiderLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -113,11 +75,9 @@ class GetRiderLocationView(APIView):
             print(f"Error: {e}")
             return "Error fetching address"
 
-# Example usage in a Django view for Rider location
-
 
 def get_rider_location(request):
-    latitude = 24.8607  
+    latitude = 24.8607
     longitude = 67.0011
     if latitude and longitude:
         address = GetRiderLocationView().get_address_from_coordinates(latitude, longitude)
@@ -125,40 +85,39 @@ def get_rider_location(request):
     return JsonResponse({"error": "Latitude and Longitude are required"}, status=400)
 
 
-
 class GetCustomerLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        """Get the location of the logged-in customer."""
         try:
-            print(f"Logged-in user: {request.user}")
-            customer = request.user.customer
+            customer = request.user.customer_profile
+            if not customer:
+                return Response({"error": "No customer profile found for the logged-in user."}, status=404)
             data = {
-                "latitude": customer.latitude,
-                "longitude": customer.longitude,
+                "latitude": customer.address_latitude,  
+                "longitude": customer.address_longitude,  
                 "address": customer.address,
             }
             return Response(data)
         except AttributeError:
-            print("Customer object not found for the logged-in user.")
             return Response({"error": "Customer details not found for the logged-in user."}, status=404)
 
     def post(self, request):
         """Update the location of the logged-in customer."""
         try:
-            customer = request.user.customer
+            customer = request.user.customer_profile
             latitude = request.data.get('latitude')
             longitude = request.data.get('longitude')
-
             if latitude is None or longitude is None:
                 return Response(
                     {"error": "Latitude and longitude are required."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             address = self.get_address_from_coordinates(latitude, longitude)
-            customer.latitude = latitude
-            customer.longitude = longitude
-            customer.address = address
+            customer.address_latitude = latitude  
+            customer.address_longitude = longitude 
+            customer.address = address 
             customer.save()
 
             return Response(
@@ -179,6 +138,8 @@ class GetCustomerLocationView(APIView):
                 "lon": longitude,
                 "format": "json",
             }
+
+            
             response = requests.get(api_url, params=params)
             if response.status_code == 200:
                 data = response.json()
@@ -188,12 +149,12 @@ class GetCustomerLocationView(APIView):
             print(f"Error: {e}")
             return "Error fetching address"
 
-# Example usage in a Django view
-
 
 def get_location(request):
-    latitude = 24.8607  
-    longitude = 67.0011
+    """Fetch address using latitude and longitude from the request."""
+    latitude = request.GET.get('latitude')
+    longitude = request.GET.get('longitude')
+
     if latitude and longitude:
         address = GetCustomerLocationView().get_address_from_coordinates(latitude, longitude)
         return JsonResponse({"address": address})
@@ -278,6 +239,6 @@ class CompanyWalletView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
 
     def get(self, request):
-        wallet = CompanyWallet.objects.first()  
+        wallet = CompanyWallet.objects.first()
         serializer = CompanyWalletSerializer(wallet)
         return Response(serializer.data)
