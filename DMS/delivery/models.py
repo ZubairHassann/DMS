@@ -34,12 +34,12 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     groups = models.ManyToManyField(
         'auth.Group',
-        related_name='customuser_groups',  
+        related_name='customuser_groups',
         blank=True
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
-        related_name='customuser_permissions',  
+        related_name='customuser_permissions',
         blank=True
     )
     email = models.EmailField(unique=True)
@@ -84,9 +84,9 @@ class Rider(models.Model):
     contact_number = models.CharField(max_length=15)
     address = models.TextField()
     latitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True)  
+        max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(
-        max_digits=9, decimal_places=6, null=True, blank=True)  
+        max_digits=9, decimal_places=6, null=True, blank=True)
     is_available = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -155,9 +155,19 @@ class RiderWallet(models.Model):
         max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
     def add_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance += amount
+        # Convert Decimal to float for addition
+        self.balance = float(self.balance) + float(amount)
+        self.balance = Decimal(str(self.balance))  # Convert back to Decimal
         self.save()
+
+    def deduct_funds(self, amount):
+        # Convert Decimal to float for subtraction
+        self.balance = float(self.balance) - float(amount)
+        self.balance = Decimal(str(self.balance))  # Convert back to Decimal
+        self.save()
+
+    def __str__(self):
+        return f"{self.rider.user.first_name} {self.rider.user.last_name} - Rider Wallet"
 
 
 class CustomerWallet(models.Model):
@@ -167,14 +177,19 @@ class CustomerWallet(models.Model):
         max_digits=10, decimal_places=2, default=0.00)
 
     def add_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance += amount
+        # Convert Decimal to float for addition
+        self.balance = float(self.balance) + float(amount)
+        self.balance = Decimal(str(self.balance))  # Convert back to Decimal
         self.save()
 
     def deduct_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance -= amount
+        # Convert Decimal to float for subtraction
+        self.balance = float(self.balance) - float(amount)
+        self.balance = Decimal(str(self.balance))  # Convert back to Decimal
         self.save()
+
+    def __str__(self):
+        return f"{self.customer.user.first_name} {self.customer.user.last_name} - Customer Wallet"
 
 
 class Order(models.Model):
@@ -284,7 +299,7 @@ class ManualOrder(models.Model):
 def detect_customer_location(customer):
     """Detect customer location if available."""
     if not customer or not hasattr(customer, 'address_latitude'):
-        return None, None 
+        return None, None
     return customer.address_latitude, customer.address_longitude
 
 
@@ -326,6 +341,7 @@ class CompanyWallet(models.Model):
         max_digits=10, decimal_places=2, default=0.00)
 
     def add_funds(self, amount):
-        amount = Decimal(amount)
-        self.balance += amount
+        # Convert Decimal to float for addition
+        self.balance = float(self.balance) + float(amount)
+        self.balance = Decimal(str(self.balance))  # Convert back to Decimal
         self.save()

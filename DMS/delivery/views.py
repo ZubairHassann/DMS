@@ -7,11 +7,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status, viewsets
 from .serializers import LoginSerializer, RiderSerializer, CustomerSerializer, CustomerWalletSerializer, RiderWalletSerializer, CompanyWalletSerializer
-from .models import  Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet,Customer
+from .models import Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet, Customer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .serializers import RiderSerializer
 import requests
 from django.http import JsonResponse
+
 
 class GetRiderLocationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -95,8 +96,8 @@ class GetCustomerLocationView(APIView):
             if not customer:
                 return Response({"error": "No customer profile found for the logged-in user."}, status=404)
             data = {
-                "latitude": customer.address_latitude,  
-                "longitude": customer.address_longitude,  
+                "latitude": customer.address_latitude,
+                "longitude": customer.address_longitude,
                 "address": customer.address,
             }
             return Response(data)
@@ -115,9 +116,9 @@ class GetCustomerLocationView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             address = self.get_address_from_coordinates(latitude, longitude)
-            customer.address_latitude = latitude  
-            customer.address_longitude = longitude 
-            customer.address = address 
+            customer.address_latitude = latitude
+            customer.address_longitude = longitude
+            customer.address = address
             customer.save()
 
             return Response(
@@ -139,7 +140,6 @@ class GetCustomerLocationView(APIView):
                 "format": "json",
             }
 
-            
             response = requests.get(api_url, params=params)
             if response.status_code == 200:
                 data = response.json()
@@ -216,6 +216,8 @@ class RiderWalletView(APIView):
             return Response({"message": "Rider profile not found."}, status=status.HTTP_404_NOT_FOUND)
         except RiderWallet.DoesNotExist:
             return Response({"message": "Rider wallet not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    
 
 
 class CustomerWalletView(APIView):

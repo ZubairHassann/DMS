@@ -40,6 +40,7 @@ class RiderAdmin(admin.ModelAdmin):
 
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(RiderWallet)
+
 admin.site.register(CustomerWallet)
 admin.site.register(ManualOrder)
 # admin.site.unregister(CustomUser)

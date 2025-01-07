@@ -14,6 +14,7 @@ from django.utils import timezone
 from rest_framework.generics import ListAPIView
 from rest_framework.exceptions import ValidationError, NotFound
 from delivery.views import GetCustomerLocationView
+from django.db import transaction
 import requests
 
 
@@ -61,7 +62,6 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
         if not user.is_superuser:
             order_address = serializer.validated_data.get('address')
 
-            
             rider = User.objects.filter(
                 Q(is_superuser=False) & Q(is_staff=True))
             rider = rider.filter(profile__address=order_address).first()
@@ -86,7 +86,7 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
         instance = serializer.instance
 
         if user.is_staff and not user.is_superuser:
-            
+
             serializer.save(
                 total_price=serializer.validated_data.get(
                     'total_price', instance.total_price),
@@ -94,8 +94,8 @@ class ManualOrderViewSet(viewsets.ModelViewSet):
                     'status', instance.status),
                 invoice=serializer.validated_data.get(
                     'invoice', instance.invoice),
-                rider=instance.rider,  
-                user=instance.user  
+                rider=instance.rider,
+                user=instance.user
             )
         elif user.is_superuser:
             serializer.save()
@@ -136,20 +136,16 @@ def complete_order(request, order_id):
                 return Response({"error": "Insufficient funds in customer's wallet to cover the deficit."},
                                 status=status.HTTP_400_BAD_REQUEST)
 
-        
         company_share_percentage = Decimal('0.07')
         company_share = order.ride_charges * company_share_percentage
         rider_share = order.ride_charges - company_share
 
-        
         company_wallet, created = CompanyWallet.objects.get_or_create(id=1)
         company_wallet.add_funds(company_share)
 
-        
         rider_wallet, _ = RiderWallet.objects.get_or_create(rider=order.rider)
         rider_wallet.add_funds(rider_share)
 
-        
         order.status = 'delivered'
         order.save()
 
@@ -176,13 +172,12 @@ class CreateManualOrder(APIView):
         except Customer.DoesNotExist:
             raise NotFound("Customer matching query does not exist.")
 
-        
         customer_lat = valid_customer.address_latitude
         customer_lon = valid_customer.address_longitude
         customer_address = valid_customer.address
 
         if not customer_lat or not customer_lon or not customer_address:
-            
+
             location_response = GetCustomerLocationView().get(request)
             if location_response.status_code == 200:
                 location_data = location_response.data
@@ -191,7 +186,6 @@ class CreateManualOrder(APIView):
                 customer_address = location_data.get(
                     'address', 'Unknown Address')
 
-                
                 valid_customer.address_latitude = customer_lat
                 valid_customer.address_longitude = customer_lon
                 valid_customer.address = customer_address
@@ -202,21 +196,17 @@ class CreateManualOrder(APIView):
                     "Please update your location details."
                 )
 
-        
         if not customer_lat or not customer_lon or not customer_address:
             raise ValidationError(
                 "Customer must have a valid address with latitude, longitude, and address. "
                 "Please update your location details."
             )
 
-        
         request_data['address'] = customer_address
 
-        
         nearest_rider = None
         min_distance = float('inf')
 
-        
         riders = Rider.objects.filter(
             latitude__isnull=False, longitude__isnull=False)
         customer_coordinates = (float(customer_lat), float(customer_lon))
@@ -232,10 +222,8 @@ class CreateManualOrder(APIView):
         if not nearest_rider:
             raise NotFound("No available riders.")
 
-        
         request_data['rider'] = nearest_rider.id
 
-        
         serializer = ManualOrderSerializer(
             data=request_data, context={'request': request})
 
@@ -272,8 +260,84 @@ class CreateManualOrder(APIView):
             return "Error fetching address"
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def complete_order(request, order_id):
+    if not request.user.is_staff:
+        return Response({"error": "Only admin and rider users can complete orders."}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        with transaction.atomic():
+            # Fetch the order
+            order = ManualOrder.objects.get(id=order_id)
+
+            # Ensure all numeric fields are converted to Decimal
+            ride_charges = Decimal(str(order.ride_charges))
+            paid_amount = Decimal(str(order.paid_amount))
+            total_price = Decimal(str(order.total_price))
+
+            total_required = total_price + ride_charges
+
+            # Debugging logs
+            print(f"Order ID: {order_id}")
+            print(f"Ride Charges: {ride_charges}, Paid Amount: {
+                  paid_amount}, Total Price: {total_price}")
+            print(f"Total Required: {total_required}")
+
+            # Handle excess or deficit payment by the customer
+            if paid_amount > total_required:
+                excess_amount = paid_amount - total_required
+                customer_wallet, _ = CustomerWallet.objects.get_or_create(
+                    customer=order.customer)
+                customer_wallet.add_funds(excess_amount)
+                print(f"Excess Amount: {
+                      excess_amount} added to Customer Wallet.")
+            elif paid_amount < total_required:
+                deficit_amount = total_required - paid_amount
+                customer_wallet, _ = CustomerWallet.objects.get_or_create(
+                    customer=order.customer)
+                if customer_wallet.balance >= deficit_amount:
+                    customer_wallet.deduct_funds(deficit_amount)
+                    print(f"Deficit Amount: {
+                          deficit_amount} deducted from Customer Wallet.")
+                else:
+                    return Response({"error": "Insufficient funds in customer's wallet to cover the deficit."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+
+            # Calculate shares for company and rider
+            company_share_percentage = Decimal('0.07')
+            company_share = ride_charges * company_share_percentage
+            rider_share = ride_charges - company_share
+
+            print(f"Company Share: {
+                  company_share}, Rider Share: {rider_share}")
+
+            # Update the company wallet
+            company_wallet, _ = CompanyWallet.objects.get_or_create(
+                id=1)  # Assuming single wallet for company
+            company_wallet.add_funds(company_share)
+            print("Company Wallet updated.")
+
+            # Update the rider wallet
+            rider_wallet, _ = RiderWallet.objects.get_or_create(
+                rider=order.rider)
+            rider_wallet.add_funds(rider_share)
+            print("Rider Wallet updated.")
+
+            # Mark the order as delivered
+            order.status = 'delivered'
+            order.save()
+            print(f"Order {order_id} marked as delivered.")
+
+            return Response({"message": "Order completed and wallets updated successfully."}, status=status.HTTP_200_OK)
+    except ManualOrder.DoesNotExist:
+        return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        print(f"Error completing order: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class AdminOrderListView(APIView):
-    permission_classes = [IsSuperUser]  
+    permission_classes = [IsSuperUser]
 
     def get(self, request):
         orders = ManualOrder.objects.all()
