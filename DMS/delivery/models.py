@@ -153,7 +153,7 @@ class RiderWallet(models.Model):
         Rider, on_delete=models.CASCADE, related_name='rider_wallet')
     balance = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0.00'))
-
+    
     def add_funds(self, amount):
         # Convert Decimal to float for addition
         self.balance = float(self.balance) + float(amount)
@@ -340,8 +340,30 @@ class CompanyWallet(models.Model):
     balance = models.DecimalField(
         max_digits=10, decimal_places=2, default=0.00)
 
-    def add_funds(self, amount):
-        # Convert Decimal to float for addition
-        self.balance = float(self.balance) + float(amount)
-        self.balance = Decimal(str(self.balance))  # Convert back to Decimal
+    def add_funds(self, amount, rider_name=None, order_id=None):
+        self.balance = Decimal(self.balance) + Decimal(amount)
         self.save()
+
+        print(f"Adding funds: amount={amount}, rider_name={
+              rider_name}, order_id={order_id}")
+
+        transaction = WalletTransaction.objects.create(
+            company_wallet=self,
+            amount=amount,
+            rider_name=rider_name,
+            order_id=order_id
+        )
+
+        print(f"Transaction created: {transaction}")
+
+
+class WalletTransaction(models.Model):
+    company_wallet = models.ForeignKey(
+        CompanyWallet, on_delete=models.CASCADE, related_name="transactions")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    rider_name = models.CharField(max_length=255, blank=True, null=True)
+    order_id = models.IntegerField(null=True, blank=True)
+    date_received = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Transaction of {self.amount} received on {self.date_received} for order {self.order_id}"

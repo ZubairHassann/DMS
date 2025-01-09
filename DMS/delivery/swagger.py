@@ -7,7 +7,7 @@ class PermissionSerializer(serializers.Serializer):
     can_create = serializers.BooleanField()
     can_read = serializers.BooleanField()
     can_update = serializers.BooleanField()
-    can_delete = serializers.BooleanField()
+    can_delete = serializers.BooleanField() 
 
 class GetPermissionSerializer(serializers.Serializer):
     user_group = serializers.IntegerField()
