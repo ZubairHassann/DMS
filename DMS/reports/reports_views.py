@@ -5,7 +5,8 @@ from delivery.models import ManualOrder
 from Orders.order_serializers import ManualOrderSerializer
 from django.db import models
 from datetime import datetime
-from delivery.models import Customer,CompanyWallet,RiderWallet,Rider
+from delivery.models import Customer, CompanyWallet, RiderWallet, Rider
+
 
 class OrderReportView(APIView):
     permission_classes = [IsAuthenticated]
@@ -30,6 +31,7 @@ class OrderReportView(APIView):
             "orders": serializer.data
         })
 
+
 class CustomerReportView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -37,10 +39,11 @@ class CustomerReportView(APIView):
         customers = Customer.objects.all()
         customer_data = []
         for customer in customers:
-            total_orders = ManualOrder.objects.filter(customer=customer).count()
+            total_orders = ManualOrder.objects.filter(
+                customer=customer).count()
             total_spent = ManualOrder.objects.filter(customer=customer).aggregate(
                 total_price=models.Sum('total_price'))['total_price'] or 0
-
+            
             customer_data.append({
                 "customer_name": f"{customer.user.first_name} {customer.user.last_name}",
                 "email": customer.user.email,
@@ -49,7 +52,8 @@ class CustomerReportView(APIView):
             })
 
         return Response({"customers": customer_data})
-    
+
+
 class CompanyCommissionReportView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -60,7 +64,8 @@ class CompanyCommissionReportView(APIView):
         return Response({
             "total_commission": total_commission
         })
-    
+
+
 class RiderReportView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -68,8 +73,10 @@ class RiderReportView(APIView):
         riders = Rider.objects.all()
         rider_data = []
         for rider in riders:
-            total_deliveries = ManualOrder.objects.filter(rider=rider, status='delivered').count()
-            pending_orders = ManualOrder.objects.filter(rider=rider).exclude(status='delivered').count()
+            total_deliveries = ManualOrder.objects.filter(
+                rider=rider, status='delivered').count()
+            pending_orders = ManualOrder.objects.filter(
+                rider=rider).exclude(status='delivered').count()
             earnings = RiderWallet.objects.filter(rider=rider).first()
             total_earnings = earnings.balance if earnings else 0
 

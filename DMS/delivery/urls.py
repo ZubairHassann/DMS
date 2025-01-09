@@ -9,7 +9,7 @@ router.register(r'customerProfile', CustomerViewSet, basename='Customer')
 
 urlpatterns = [
     path('', include(router.urls)),
-    path("Comapany-Wallet", CompanyWalletView.as_view(), name='comapany-wallet'),
+    path("Company-Wallet", CompanyWalletView.as_view(), name='comapany-wallet'),
     path("Customer-Wallet", CustomerWalletView.as_view(), name='customer-wallet'),
     path("Rider-Wallet", RiderWalletView.as_view(), name='rider-wallet'),
     path('CustomerLocations/',

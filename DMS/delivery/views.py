@@ -217,8 +217,6 @@ class RiderWalletView(APIView):
         except RiderWallet.DoesNotExist:
             return Response({"message": "Rider wallet not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    
-
 
 class CustomerWalletView(APIView):
     permission_classes = [IsAuthenticated]

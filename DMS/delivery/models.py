@@ -105,7 +105,7 @@ class Customer(models.Model):
         on_delete=models.CASCADE,
         related_name='customer_profile'
     )
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    mobile_number = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     address_latitude = models.DecimalField(
         max_digits=9, decimal_places=6, null=True, blank=True

@@ -1,109 +1,146 @@
 from delivery.models import *
-from rest_framework import viewsets, status
+from rest_framework import status
 from .order_serializers import *
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 from delivery.permissions import IsSuperUser
-from django.contrib.auth.models import User
-from django.utils import timezone
 from rest_framework.generics import ListAPIView
 from rest_framework.exceptions import ValidationError, NotFound
 from delivery.views import GetCustomerLocationView
-from django.db import transaction
+from rest_framework.exceptions import NotFound, PermissionDenied
 import requests
 
 
-class ManualOrderViewSet(viewsets.ModelViewSet):
-    queryset = ManualOrder.objects.all()
-    serializer_class = ManualOrderSerializer
+class ManualOrderListView(APIView):
     permission_classes = [IsAuthenticated]
-    authentication_classes = [SessionAuthentication, JWTAuthentication]
 
-    def list(self, request, *args, **kwargs):
-        user = self.request.user
+    def get(self, request, *args, **kwargs):
+        user = request.user
+
+        # Determine user role and fetch orders accordingly
         if user.is_superuser:
+            # Admin: Fetch all orders
             completed_orders = ManualOrder.objects.filter(status='delivered')
-            active_orders = ManualOrder.objects.exclude(
-                Q(status='delivered') | Q(rider__isnull=True))
-            unassigned_orders = ManualOrder.objects.filter(
-                Q(rider=user) | Q(rider__isnull=True))
-        elif user.is_staff:
+            active_orders = ManualOrder.objects.exclude(status='delivered')
+        elif hasattr(user, 'rider'):
+            # Rider: Fetch orders assigned to them
             completed_orders = ManualOrder.objects.filter(
-                rider=user, status='delivered')
+                rider=user.rider, status='delivered')
             active_orders = ManualOrder.objects.filter(
-                rider=user).exclude(status='delivered')
-            unassigned_orders = None
-        else:
+                rider=user.rider).exclude(status='delivered')
+        elif hasattr(user, 'customer'):
+            # Customer: Fetch orders they created
             completed_orders = ManualOrder.objects.filter(
-                user=user, status='delivered')
+                customer=user.customer, status='delivered')
             active_orders = ManualOrder.objects.filter(
-                user=user).exclude(status='delivered')
-            unassigned_orders = None
-        completed_orders = self.get_serializer(
-            completed_orders, many=True).data
-        active_orders = self.get_serializer(active_orders, many=True).data
-        unassigned_orders = self.get_serializer(
-            unassigned_orders, many=True).data if unassigned_orders else []
-
-        return Response({
-            "completed_orders": completed_orders,
-            "active_orders": active_orders,
-            'unassigned_orders': unassigned_orders,
-        })
-
-    def perform_create(self, serializer):
-        user = self.request.user
-
-        if not user.is_superuser:
-            order_address = serializer.validated_data.get('address')
-
-            rider = User.objects.filter(
-                Q(is_superuser=False) & Q(is_staff=True))
-            rider = rider.filter(profile__address=order_address).first()
-
-            if rider:
-                serializer.save(user=user, rider=rider)
-            else:
-                rider = User.objects.filter(
-                    Q(is_superuser=True) & Q(is_staff=False)).first()
-                if rider:
-                    serializer.save(user=user, rider=rider)
-                else:
-                    return Response(
-                        {'detail': 'No available riders for the specified address, Order has been shifted to unassigned orders'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                customer=user.customer).exclude(status='delivered')
         else:
-            serializer.save(user=user)
+            raise NotFound("You do not have permission to view orders.")
 
-    def perform_update(self, serializer):
-        user = self.request.user
-        instance = serializer.instance
+        # Serialize the data
+        serializer = ManualOrderSerializer(
+            {
+                "completed_orders": completed_orders,
+                "active_orders": active_orders,
+            },
+            context={"request": request},
+            many=True,
+        )
 
-        if user.is_staff and not user.is_superuser:
+        # Return response
+        return Response(
+            {
+                "completed_orders": serializer.data.get("completed_orders", []),
+                "active_orders": serializer.data.get["manual_orders_text_view"],
+            }
+        )
+# class ManualOrderViewSet(viewsets.ModelViewSet):
+#     queryset = ManualOrder.objects.all()
+#     serializer_class = ManualOrderSerializer
+#     permission_classes = [IsAuthenticated]
+#     authentication_classes = [SessionAuthentication, JWTAuthentication]
 
-            serializer.save(
-                total_price=serializer.validated_data.get(
-                    'total_price', instance.total_price),
-                status=serializer.validated_data.get(
-                    'status', instance.status),
-                invoice=serializer.validated_data.get(
-                    'invoice', instance.invoice),
-                rider=instance.rider,
-                user=instance.user
-            )
-        elif user.is_superuser:
-            serializer.save()
-        else:
-            return Response(
-                {'detail': 'You do not have permission to update this order.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+#     def list(self, request, *args, **kwargs):
+#         user = self.request.user
+#         if user.is_superuser:
+#             completed_orders = ManualOrder.objects.filter(status='delivered')
+#             active_orders = ManualOrder.objects.exclude(
+#                 Q(status='delivered') | Q(rider__isnull=True)
+#             )
+#             unassigned_orders = ManualOrder.objects.filter(
+#                 Q(rider=user) | Q(rider__isnull=True)
+#             )
+#         elif user.is_staff:
+#             completed_orders = ManualOrder.objects.filter(rider=user, status='delivered')
+#             active_orders = ManualOrder.objects.filter(rider=user).exclude(status='delivered')
+#             unassigned_orders = None
+#         else:
+#             completed_orders = ManualOrder.objects.filter(user=user, status='delivered')
+#             active_orders = ManualOrder.objects.filter(user=user).exclude(status='delivered')
+#             unassigned_orders = None
+
+#         completed_orders = self.get_serializer(completed_orders, many=True).data
+#         active_orders = self.get_serializer(active_orders, many=True).data
+#         unassigned_orders = self.get_serializer(unassigned_orders, many=True).data if unassigned_orders else []
+
+#         return Response({
+#             "completed_orders": completed_orders,
+#             "active_orders": active_orders,
+#             'unassigned_orders': unassigned_orders,
+#         })
+
+
+#     def perform_create(self, serializer):
+#         user = self.request.user
+
+#         if not user.is_superuser:
+#             order_address = serializer.validated_data.get('address')
+
+#             # Ensure you're querying against the appropriate model
+#             rider = Rider.objects.filter(
+#                 Q(user__is_superuser=False, user__is_staff=True),
+#                 user__profile__address=order_address
+#             ).first()
+
+#             if rider:
+#                 serializer.save(user=user, rider=rider)
+#             else:
+#                 return Response(
+#                     {'detail': 'No available riders for the specified address, order has been shifted to unassigned orders'},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+#         else:
+#             serializer.save(user=user)
+
+
+#     def perform_update(self, serializer):
+#         user = self.request.user
+#         instance = serializer.instance
+
+#         if user.is_staff and not user.is_superuser:
+
+#             serializer.save(
+#                 total_price=serializer.validated_data.get(
+#                     'total_price', instance.total_price),
+#                 status=serializer.validated_data.get(
+#                     'status', instance.status),
+#                 invoice=serializer.validated_data.get(
+#                     'invoice', instance.invoice),
+#                 rider=instance.rider,
+#                 user=instance.user
+#             )
+#         elif user.is_superuser:
+#             serializer.save()
+#         else:
+#             return Response(
+#                 {'detail': 'You do not have permission to update this order.'},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
 
 
 class CreateManualOrder(APIView):
@@ -117,6 +154,43 @@ class CreateManualOrder(APIView):
         request_data = request.data
         request_data['user'] = request.user.id
 
+        # Validation for required fields
+        required_fields = ['mobile_number', 'product_name',
+                           'order_details', 'ride_charges']
+        missing_fields = [
+            field for field in required_fields if not request_data.get(field)]
+        if missing_fields:
+            raise ValidationError(f"Missing required fields: {
+                                  ', '.join(missing_fields)}")
+
+        # Validate mobile_number
+        mobile_number = request_data.get('mobile_number')
+        if not (mobile_number.isdigit() and 10 <= len(mobile_number) <= 12):
+            raise ValidationError(
+                "Invalid mobile number. Must be a numeric value with 10-12 digits.")
+
+        # Validate product_name
+        product_name = request_data.get('product_name')
+        if len(product_name.strip()) < 3:
+            raise ValidationError(
+                "Product name must be at least 3 characters long.")
+
+        # Validate order_details
+        order_details = request_data.get('order_details')
+        if len(order_details.strip()) < 10:
+            raise ValidationError(
+                "Order details must be at least 10 characters long.")
+
+        # Validate ride_charges
+        ride_charges = request_data.get('ride_charges')
+        try:
+            ride_charges = float(ride_charges)
+            if ride_charges <= 0:
+                raise ValidationError(
+                    "Ride charges must be a positive number.")
+        except ValueError:
+            raise ValidationError("Ride charges must be a valid number.")
+
         try:
             valid_customer = Customer.objects.get(user=request.user)
         except Customer.DoesNotExist:
@@ -126,8 +200,8 @@ class CreateManualOrder(APIView):
         customer_lon = valid_customer.address_longitude
         customer_address = valid_customer.address
 
+        # Fetch and validate customer's location if missing
         if not customer_lat or not customer_lon or not customer_address:
-
             location_response = GetCustomerLocationView().get(request)
             if location_response.status_code == 200:
                 location_data = location_response.data
@@ -141,22 +215,18 @@ class CreateManualOrder(APIView):
                 valid_customer.address = customer_address
                 valid_customer.save()
             else:
-                raise ValidationError(
-                    "Customer must have a valid address with latitude and longitude. "
-                    "Please update your location details."
-                )
+                raise ValidationError("Customer must have a valid address with latitude and longitude. "
+                                      "Please update your location details.")
 
         if not customer_lat or not customer_lon or not customer_address:
-            raise ValidationError(
-                "Customer must have a valid address with latitude, longitude, and address. "
-                "Please update your location details."
-            )
+            raise ValidationError("Customer must have a valid address with latitude, longitude, and address. "
+                                  "Please update your location details.")
 
         request_data['address'] = customer_address
 
+        # Find the nearest rider
         nearest_rider = None
         min_distance = float('inf')
-
         riders = Rider.objects.filter(
             latitude__isnull=False, longitude__isnull=False)
         customer_coordinates = (float(customer_lat), float(customer_lon))
@@ -176,11 +246,9 @@ class CreateManualOrder(APIView):
 
         serializer = ManualOrderSerializer(
             data=request_data, context={'request': request})
-
         if serializer.is_valid():
             manual_order = serializer.save(
                 customer=valid_customer, rider=nearest_rider)
-
             return Response(
                 {"message": "Order created successfully.", "order": serializer.data},
                 status=200,
@@ -388,3 +456,25 @@ class RiderOrderListView(ListAPIView):
         except Rider.DoesNotExist:
             return ManualOrder.objects.all()
         return ManualOrder.objects.all()
+
+
+class OrderDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id, *args, **kwargs):
+        try:
+            # Retrieve the order by ID
+            order = ManualOrder.objects.get(id=order_id)
+
+            # Check if the user is either the customer who placed the order or an admin
+            if order.customer.user != request.user and not request.user.is_staff:
+                raise PermissionDenied(
+                    "You do not have permission to view this order.")
+
+        except ManualOrder.DoesNotExist:
+            raise NotFound("Order with the given ID does not exist.")
+
+        # Serialize the order data
+        serializer = ManualOrderSerializer(order, context={'request': request})
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
