@@ -281,6 +281,7 @@ class CreateManualOrder(APIView):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def complete_order(request, order_id):
+    
     if not request.user.is_rider:
         return Response({"error": "Only admin and rider users can complete orders."}, status=status.HTTP_403_FORBIDDEN)
 

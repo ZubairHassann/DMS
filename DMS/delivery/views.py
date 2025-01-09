@@ -11,6 +11,7 @@ from .models import Rider, Customer, CustomerWallet, CompanyWallet, RiderWallet,
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .serializers import RiderSerializer
 import requests
+from decimal import Decimal
 from django.http import JsonResponse
 
 
@@ -235,10 +236,37 @@ class CustomerWalletView(APIView):
 
 
 class CompanyWalletView(APIView):
-    permission_classes = [IsSuperUser]
-    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        wallet = CompanyWallet.objects.first()
-        serializer = CompanyWalletSerializer(wallet)
-        return Response(serializer.data)
+        try:
+            # Fetch the company wallet
+            wallet, _ = CompanyWallet.objects.get_or_create(
+                id=1)  # Assuming a single wallet
+            serializer = CompanyWalletSerializer(wallet)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request):
+        try:
+            print(f"Request data: {request.data}")
+
+            amount = Decimal(request.data.get('amount', '0.00'))
+            rider_name = request.data.get('rider_name', None)
+            order_id = request.data.get('order_id', None)
+
+            print(f"Parsed data: amount={amount}, rider_name={
+                  rider_name}, order_id={order_id}")
+
+            if amount <= 0:
+                return Response({"error": "Invalid amount"}, status=status.HTTP_400_BAD_REQUEST)
+
+            wallet, _ = CompanyWallet.objects.get_or_create(id=1)
+            wallet.add_funds(
+                amount=amount, rider_name=rider_name, order_id=order_id)
+
+            return Response({"message": "Funds added successfully."}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print(f"Error: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

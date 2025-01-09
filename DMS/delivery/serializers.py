@@ -6,7 +6,7 @@ from .models import (
     Customer,
     CustomerWallet,
     RiderWallet,
-    CompanyWallet,
+    CompanyWallet, WalletTransaction
 )
 
 
@@ -165,10 +165,23 @@ class CustomerWalletSerializer(serializers.ModelSerializer):
         fields = ["balance"]
 
 
+class WalletTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WalletTransaction
+        fields = ['amount', 'rider_name', 'order_id', 'date_received']
+
+
 class CompanyWalletSerializer(serializers.ModelSerializer):
+    transactions = WalletTransactionSerializer(many=True)
+
     class Meta:
         model = CompanyWallet
-        fields = ["balance"]
+        fields = ['balance', 'transactions']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        print(f"Serialized data: {data}")
+        return data
 
 
 class RiderSerializer(serializers.ModelSerializer):
